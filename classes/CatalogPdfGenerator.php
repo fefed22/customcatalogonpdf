@@ -92,7 +92,7 @@ class CustomCatalogTCPDF extends TCPDF
 
         // Numéro de page relatif (sans la couverture)
         $page_rel = $this->getPage() - 1;
-        $this->Cell(20, 5, $this->l('Page') . ' ' . $page_rel, 0, 0, 'R');
+        $this->Cell(20, 5, 'Page ' . $page_rel, 0, 0, 'R');
     }
 }
 
@@ -348,6 +348,7 @@ class CatalogPdfGenerator
         int $id_lang
     ): CustomCatalogTCPDF {
         $pdf = new CustomCatalogTCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->setJpegQuality(72);
 
         // Métadonnées
         $pdf->SetCreator('Créa2média – CustomCatalogOnPdf');
@@ -377,7 +378,10 @@ class CatalogPdfGenerator
 
         // ── Page 1 : couverture ──────────────────────────────────────────────
         $pdf->AddPage();
+        // Désactiver l'auto break : la barre décorative en bas dépasserait le seuil
+        $pdf->SetAutoPageBreak(false);
         $this->renderCover($pdf, $profile, $shop_info, $price_mention, $customer);
+        $pdf->SetAutoPageBreak(true, 22);
 
         // ── Pages produits ───────────────────────────────────────────────────
         $pdf->AddPage();
@@ -498,73 +502,74 @@ class CatalogPdfGenerator
         array $product,
         CustomCatalogProfile $profile
     ): void {
-        $has_variants  = !empty($product['variants']);
-        $img_path      = $this->getProductImagePath((int) $product['id_image']);
-        $margin        = $pdf->getOriginalMargins();
-        $col_w         = $pdf->getPageWidth() - $margin['left'] - $margin['right'];
-        $img_cell_w    = 28; // largeur cellule photo en mm
-        $img_size      = 22; // taille image en mm
-        $text_w        = $col_w - $img_cell_w - 2;
-        $row_min_h     = $img_size + 4; // hauteur minimale d'une ligne produit
+        $has_variants = !empty($product['variants']);
+        $img_path     = $this->prepareImageForPdf($this->getProductImagePath((int) $product['id_image']));
+        $margin       = $pdf->getOriginalMargins();
+        $col_w        = $pdf->getPageWidth() - $margin['left'] - $margin['right'];
+        $img_cell_w   = 22;
+        $img_size     = 16;
+        $text_w       = $col_w - $img_cell_w - 2;
 
-        // Estimer la hauteur totale du bloc (parent + variantes) pour décider du saut de page
-        $nb_variants   = count($product['variants']);
-        $total_h       = $row_min_h + ($nb_variants * 8) + 4;
-        $bottom_limit  = $pdf->getPageHeight() - $pdf->getBreakMargin();
-        if ($pdf->GetY() + $total_h > $bottom_limit) {
+        // Estimer la hauteur totale du bloc pour décider du saut de page
+        $nb_variants = count($product['variants']);
+        $total_h     = $img_size + 4 + ($nb_variants * 9);
+        if ($pdf->GetY() + $total_h > $pdf->getPageHeight() - $pdf->getBreakMargin()) {
             $pdf->AddPage();
         }
 
         $y_start = $pdf->GetY();
 
-        // ── Photo produit ──────────────────────────────────────────────────
+        // ── Photo produit ────────────────────────────────────────────────
         if ($img_path !== '') {
-            $pdf->Image(
-                $img_path,
-                $margin['left'] + 1,
-                $y_start + 1,
-                $img_size, $img_size,
-                '', '', 'T', false, 150
-            );
+            $pdf->Image($img_path, $margin['left'] + 1, $y_start + 1, $img_size, $img_size, '', '', 'T', false, 96);
         } else {
-            // Placeholder gris
             $pdf->SetFillColor(230, 230, 230);
             $pdf->Rect($margin['left'] + 1, $y_start + 1, $img_size, $img_size, 'F');
+            $pdf->SetFillColor(0, 0, 0);
         }
 
-        // ── Infos produit principal ────────────────────────────────────────
-        $x_text = $margin['left'] + $img_cell_w;
-        $pdf->SetXY($x_text, $y_start + 2);
+        // ── Nom du produit ───────────────────────────────────────────────
+        $x_text      = $margin['left'] + $img_cell_w;
+        $price_col_w = $text_w * 0.35;
+        $attr_col_w  = $text_w - $price_col_w;
 
+        $pdf->SetXY($x_text, $y_start + 2);
         $pdf->SetFont('helvetica', 'B', 9.5);
         $pdf->SetTextColor(30, 30, 30);
         $pdf->MultiCell($text_w, 5, $product['name'], 0, 'L');
 
-        $pdf->SetFont('helvetica', '', 8);
-        $pdf->SetTextColor(100, 100, 100);
-        $pdf->SetX($x_text);
-        $pdf->Cell($text_w, 4, 'Réf : ' . $product['reference'], 0, 1, 'L');
-
-        // Prix uniquement si produit simple (pas de variantes)
-        if ($profile->show_prices && !$has_variants && $product['simple_price'] !== null) {
-            $pdf->SetFont('helvetica', 'B', 9);
-            $pdf->SetTextColor(44, 62, 80);
+        // Produit simple : référence à gauche + prix à droite sur la même ligne
+        if (!$has_variants) {
+            $pdf->SetFont('helvetica', '', 8);
+            $pdf->SetTextColor(100, 100, 100);
             $pdf->SetX($x_text);
-            $pdf->Cell($text_w, 5, $this->formatPrice((float) $product['simple_price']) . ' HT', 0, 1, 'L');
-        }
+            $pdf->Cell($attr_col_w, 4, 'Réf : ' . $product['reference'], 0, 0, 'L');
 
-        $y_after_text = $pdf->GetY();
-        $y_after_img  = $y_start + $img_size + 2;
-        $pdf->SetY(max($y_after_text, $y_after_img));
-
-        // ── Déclinaisons ──────────────────────────────────────────────────
-        if ($has_variants) {
-            foreach ($product['variants'] as $variant) {
-                $this->drawVariant($pdf, $variant, $profile, $margin, $img_cell_w, $col_w);
+            if ($profile->show_prices && $product['simple_price'] !== null) {
+                $pdf->SetFont('helvetica', 'B', 8.5);
+                $pdf->SetTextColor(44, 62, 80);
+                $pdf->Cell($price_col_w, 4, $this->formatPrice((float) $product['simple_price']) . ' HT', 0, 1, 'R');
+            } else {
+                $pdf->Ln(4);
             }
         }
+        // Produit déclinable : pas de référence globale sur le parent
 
-        // Ligne de séparation légère
+        $y_after_text = $pdf->GetY();
+
+        // ── Déclinaisons : commencent dès après le nom ───────────────────
+        if ($has_variants) {
+            $pdf->SetY($y_after_text);
+            foreach ($product['variants'] as $idx => $variant) {
+                $this->drawVariant($pdf, $variant, $profile, $margin, $img_cell_w, $col_w, $idx);
+            }
+            // Repousser le curseur sous l'image si les variantes étaient courtes
+            $pdf->SetY(max($pdf->GetY(), $y_start + $img_size + 2));
+        } else {
+            $pdf->SetY(max($y_after_text, $y_start + $img_size + 2));
+        }
+
+        // Séparateur léger entre produits
         $pdf->SetDrawColor(220, 220, 220);
         $pdf->SetLineWidth(0.2);
         $pdf->Line($margin['left'], $pdf->GetY() + 1, $pdf->getPageWidth() - $margin['right'], $pdf->GetY() + 1);
@@ -582,30 +587,39 @@ class CatalogPdfGenerator
         CustomCatalogProfile $profile,
         array $margin,
         float $img_cell_w,
-        float $col_w
+        float $col_w,
+        int $variant_index = 0
     ): void {
-        $indent   = 6; // indentation supplémentaire pour les variantes
-        $x_text   = $margin['left'] + $img_cell_w + $indent;
-        $text_w   = $col_w - $img_cell_w - $indent;
+        $indent  = 5;
+        $x_text  = $margin['left'] + $img_cell_w + $indent;
+        $text_w  = $col_w - $img_cell_w - $indent;
+        $row_h   = 8.5;
 
-        // Vérifier saut de page
-        if ($pdf->GetY() + 10 > $pdf->getPageHeight() - $pdf->getBreakMargin()) {
+        if ($pdf->GetY() + $row_h > $pdf->getPageHeight() - $pdf->getBreakMargin()) {
             $pdf->AddPage();
         }
 
         $y = $pdf->GetY();
 
-        // Trait vertical gauche pour l'indentation
-        $pdf->SetDrawColor(180, 180, 180);
+        // Fond alterné démarrant après la colonne photo (ne couvre pas l'image du parent)
+        if ($variant_index % 2 === 0) {
+            $pdf->SetFillColor(245, 247, 250);
+            $pdf->Rect($margin['left'] + $img_cell_w, $y, $col_w - $img_cell_w, $row_h, 'F');
+            $pdf->SetFillColor(0, 0, 0);
+        }
+
+        // Trait vertical d'indentation
+        $pdf->SetDrawColor(190, 190, 190);
         $pdf->SetLineWidth(0.4);
-        $pdf->Line($margin['left'] + $img_cell_w + 1, $y, $margin['left'] + $img_cell_w + 1, $y + 8);
+        $pdf->Line($margin['left'] + $img_cell_w + 1, $y + 1, $margin['left'] + $img_cell_w + 1, $y + $row_h - 1);
         $pdf->SetDrawColor(0);
         $pdf->SetLineWidth(0.2);
 
-        $pdf->SetXY($x_text, $y);
-        $pdf->SetFont('helvetica', '', 8.5);
-        $pdf->SetTextColor(60, 60, 60);
         $attr_w = $profile->show_prices ? ($text_w * 0.65) : $text_w;
+
+        $pdf->SetXY($x_text, $y + 0.8);
+        $pdf->SetFont('helvetica', '', 8.5);
+        $pdf->SetTextColor(55, 55, 55);
         $pdf->Cell($attr_w, 4, $variant['attribute_names'], 0, 0, 'L');
 
         if ($profile->show_prices && $variant['price'] !== null) {
@@ -614,13 +628,12 @@ class CatalogPdfGenerator
             $pdf->Cell($text_w - $attr_w, 4, $this->formatPrice((float) $variant['price']) . ' HT', 0, 0, 'R');
         }
 
-        $pdf->Ln(4);
+        $pdf->SetXY($x_text, $y + 4.5);
         $pdf->SetFont('helvetica', '', 7.5);
-        $pdf->SetTextColor(140, 140, 140);
-        $pdf->SetX($x_text);
+        $pdf->SetTextColor(150, 150, 150);
         $pdf->Cell($text_w, 3.5, 'Réf : ' . $variant['reference'], 0, 1, 'L');
 
-        $pdf->Ln(0.5);
+        $pdf->SetY($y + $row_h);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -639,25 +652,59 @@ class CatalogPdfGenerator
         $folder = Image::getImgFolderStatic($id_image);
         $base   = _PS_IMG_DIR_ . 'p/' . $folder . $id_image;
 
-        foreach (['.jpg', '.jpeg', '.png'] as $ext) {
+        foreach (['.jpg', '.jpeg', '.png', '.webp'] as $ext) {
             if (file_exists($base . $ext)) {
                 return $base . $ext;
             }
         }
 
-        // Tentative de conversion webp → jpg via GD
-        if (file_exists($base . '.webp') && function_exists('imagecreatefromwebp')) {
-            $img = @imagecreatefromwebp($base . '.webp');
-            if ($img) {
-                $tmp = tempnam(sys_get_temp_dir(), 'ccpdf_') . '.jpg';
-                imagejpeg($img, $tmp, 85);
-                imagedestroy($img);
-                $this->tempFiles[] = $tmp;
-                return $tmp;
-            }
+        return '';
+    }
+
+    /**
+     * Redimensionne et compresse l'image source en JPEG 120px max via GD.
+     * Gère jpg, png et webp. Retourne le chemin d'un fichier temporaire.
+     */
+    private function prepareImageForPdf(string $src_path, int $max_px = 120): string
+    {
+        if ($src_path === '') {
+            return '';
         }
 
-        return '';
+        $info = @getimagesize($src_path);
+        if (!$info || !function_exists('imagecreatetruecolor')) {
+            return $src_path;
+        }
+
+        [$w, $h, $type] = $info;
+
+        $src_img = match ($type) {
+            IMAGETYPE_JPEG => @imagecreatefromjpeg($src_path),
+            IMAGETYPE_PNG  => @imagecreatefrompng($src_path),
+            IMAGETYPE_WEBP => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($src_path) : false,
+            default        => false,
+        };
+
+        if (!$src_img) {
+            return $type === IMAGETYPE_WEBP ? '' : $src_path;
+        }
+
+        $ratio = min(1.0, $max_px / max($w, $h, 1));
+        $new_w = max(1, (int) round($w * $ratio));
+        $new_h = max(1, (int) round($h * $ratio));
+
+        $dst_img = imagecreatetruecolor($new_w, $new_h);
+        $white   = imagecolorallocate($dst_img, 255, 255, 255);
+        imagefill($dst_img, 0, 0, $white);
+        imagecopyresampled($dst_img, $src_img, 0, 0, 0, 0, $new_w, $new_h, $w, $h);
+        imagedestroy($src_img);
+
+        $tmp = tempnam(sys_get_temp_dir(), 'ccpdf_img_') . '.jpg';
+        imagejpeg($dst_img, $tmp, 72);
+        imagedestroy($dst_img);
+
+        $this->tempFiles[] = $tmp;
+        return $tmp;
     }
 
     /**
