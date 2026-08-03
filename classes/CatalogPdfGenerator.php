@@ -166,7 +166,11 @@ class CatalogPdfGenerator
                 p.id_product,
                 pl.name                                                         AS product_name,
                 pa.id_product_attribute,
-                GROUP_CONCAT(DISTINCT agl.name ORDER BY agl.name SEPARATOR " / ") AS attribute_names,
+                GROUP_CONCAT(
+                    DISTINCT CONCAT(aggl.name, " : ", agl.name)
+                    ORDER BY aggl.name, agl.name
+                    SEPARATOR " / "
+                ) AS attribute_names,
                 COALESCE(NULLIF(pa.reference, ""), p.reference)                 AS product_reference,
                 p.reference                                                     AS product_reference_base,
                 cl.name                                                         AS default_category_name,
@@ -181,20 +185,25 @@ class CatalogPdfGenerator
                 ON p.id_product = pa.id_product
             LEFT JOIN `' . _DB_PREFIX_ . 'category_lang` cl
                 ON p.id_category_default = cl.id_category AND cl.id_lang = ' . $id_lang . '
+            LEFT JOIN `' . _DB_PREFIX_ . 'category` cdef
+                ON p.id_category_default = cdef.id_category
             LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute_combination` pac
                 ON pa.id_product_attribute = pac.id_product_attribute
             LEFT JOIN `' . _DB_PREFIX_ . 'attribute` a
                 ON pac.id_attribute = a.id_attribute
             LEFT JOIN `' . _DB_PREFIX_ . 'attribute_lang` agl
                 ON a.id_attribute = agl.id_attribute AND agl.id_lang = ' . $id_lang . '
+            LEFT JOIN `' . _DB_PREFIX_ . 'attribute_group_lang` aggl
+                ON a.id_attribute_group = aggl.id_attribute_group AND aggl.id_lang = ' . $id_lang . '
             LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` ml
                 ON p.id_manufacturer = ml.id_manufacturer
             LEFT JOIN `' . _DB_PREFIX_ . 'image` img
                 ON p.id_product = img.id_product AND img.cover = 1
             WHERE p.active = 1
+              AND p.is_virtual = 0
             ' . $where_manufacturer . '
             GROUP BY p.id_product, pa.id_product_attribute
-            ORDER BY cl.name ASC, p.id_product ASC, pa.id_product_attribute ASC';
+            ORDER BY cdef.nleft ASC, p.id_product ASC, pa.id_product_attribute ASC';
 
         $rows = Db::getInstance()->executeS($query);
         if (!$rows) {
@@ -202,20 +211,8 @@ class CatalogPdfGenerator
         }
 
         if ($profile->show_prices) {
-            $price_customer_id = $this->resolvePriceCustomerId($profile);
             foreach ($rows as &$row) {
-                $row['product_price'] = Product::getPriceStatic(
-                    (int) $row['id_product'],
-                    false,
-                    ($row['id_product_attribute'] > 0 ? (int) $row['id_product_attribute'] : null),
-                    6,
-                    null,
-                    false,
-                    true,
-                    1,
-                    false,
-                    $price_customer_id ?: null
-                );
+                $row['product_price'] = $this->resolveProductPrice($row, $profile);
             }
             unset($row);
         }
@@ -224,31 +221,105 @@ class CatalogPdfGenerator
     }
 
     /**
-     * Détermine l'id_customer à passer à getPriceStatic selon le profil.
-     * Retourne 0 si aucune remise à appliquer.
+     * Détermine le prix produit selon le profil (catalogue, groupe, client).
      */
-    private function resolvePriceCustomerId(CustomCatalogProfile $profile): int
+    private function resolveProductPrice(array $row, CustomCatalogProfile $profile): float
     {
+        $id_product = (int) $row['id_product'];
+        $id_product_attribute = ((int) $row['id_product_attribute'] > 0) ? (int) $row['id_product_attribute'] : null;
+
+        // Prix catalogue sans remise
         if (!$profile->use_discounts) {
-            return 0; // prix catalogue, sans remise
+            return (float) Product::getPriceStatic(
+                $id_product,
+                false,
+                $id_product_attribute,
+                6,
+                null,
+                false,
+                true,
+                1,
+                false,
+                null
+            );
         }
+
+        // Mode client spécifique
         if ($profile->id_customer > 0) {
-            return (int) $profile->id_customer;
+            return (float) Product::getPriceStatic(
+                $id_product,
+                false,
+                $id_product_attribute,
+                6,
+                null,
+                false,
+                true,
+                1,
+                false,
+                (int) $profile->id_customer
+            );
         }
+
+        // Mode groupe sans client sélectionné
         if ($profile->id_group > 0) {
-            // Cherche un client du groupe sans prix spécifique pour représenter le groupe
-            $row = Db::getInstance()->getRow('
-                SELECT cg.id_customer
-                FROM `' . _DB_PREFIX_ . 'customer_group` AS cg
-                WHERE (
-                    SELECT COUNT(sp.id_specific_price)
-                    FROM `' . _DB_PREFIX_ . 'specific_price` AS sp
-                    WHERE sp.id_customer = cg.id_customer
-                ) = 0
-                AND cg.id_group = ' . (int) $profile->id_group);
-            return isset($row['id_customer']) ? (int) $row['id_customer'] : 0;
+            return $this->getGroupPrice($id_product, $id_product_attribute, (int) $profile->id_group);
         }
-        return 0;
+
+        // Fallback: prix catalogue
+        return (float) Product::getPriceStatic(
+            $id_product,
+            false,
+            $id_product_attribute,
+            6,
+            null,
+            false,
+            true,
+            1,
+            false,
+            null
+        );
+    }
+
+    /**
+     * Calcule le prix pour un groupe sans dépendre d'un client représentatif.
+     */
+    private function getGroupPrice(int $id_product, ?int $id_product_attribute, int $id_group): float
+    {
+        $id_shop = (int) $this->context->shop->id;
+        $id_currency = Validate::isLoadedObject($this->context->currency)
+            ? (int) $this->context->currency->id
+            : (int) Currency::getDefaultCurrencyId();
+
+        $id_country = Validate::isLoadedObject($this->context->country)
+            ? (int) $this->context->country->id
+            : (int) Configuration::get('PS_COUNTRY_DEFAULT');
+
+        $specific_price = null;
+        $id_cart = Validate::isLoadedObject($this->context->cart) ? (int) $this->context->cart->id : 0;
+
+        return (float) Product::priceCalculation(
+            $id_shop,
+            $id_product,
+            $id_product_attribute,
+            $id_country,
+            0,
+            '',
+            $id_currency,
+            $id_group,
+            1,
+            false,
+            6,
+            false,
+            true,
+            true,
+            $specific_price,
+            true,
+            0,
+            false,
+            $id_cart,
+            0,
+            0
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -261,14 +332,19 @@ class CatalogPdfGenerator
 
         foreach ($rows as $row) {
             $cat_name  = $row['default_category_name'] ?: '—';
+            $cat_id    = (int) $row['id_category_default'];
             $id_prod   = (int) $row['id_product'];
             $id_attr   = (int) $row['id_product_attribute'];
 
-            if (!isset($categories[$cat_name])) {
-                $categories[$cat_name] = [];
+            if (!isset($categories[$cat_id])) {
+                $categories[$cat_id] = [
+                    'id_category' => $cat_id,
+                    'name'        => $cat_name,
+                    'products'    => [],
+                ];
             }
-            if (!isset($categories[$cat_name][$id_prod])) {
-                $categories[$cat_name][$id_prod] = [
+            if (!isset($categories[$cat_id]['products'][$id_prod])) {
+                $categories[$cat_id]['products'][$id_prod] = [
                     'id_product'   => $id_prod,
                     'name'         => $row['product_name'],
                     'reference'    => $row['product_reference_base'],
@@ -279,18 +355,18 @@ class CatalogPdfGenerator
             }
 
             if ($id_attr > 0) {
-                $categories[$cat_name][$id_prod]['variants'][] = [
+                $categories[$cat_id]['products'][$id_prod]['variants'][] = [
                     'id_product_attribute' => $id_attr,
                     'attribute_names'      => $row['attribute_names'] ?? '',
                     'reference'            => $row['product_reference'],
                     'price'                => $row['product_price'] ?? null,
                 ];
             } else {
-                $categories[$cat_name][$id_prod]['simple_price'] = $row['product_price'] ?? null;
+                $categories[$cat_id]['products'][$id_prod]['simple_price'] = $row['product_price'] ?? null;
             }
         }
 
-        return $categories;
+        return array_values($categories);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -383,9 +459,19 @@ class CatalogPdfGenerator
         $this->renderCover($pdf, $profile, $shop_info, $price_mention, $customer);
         $pdf->SetAutoPageBreak(true, 22);
 
-        // ── Pages produits ───────────────────────────────────────────────────
+        // ── Sommaire : réserver autant de pages que nécessaire ───────────────
+        $toc_page_start = 2;
+        $toc_page_count = $this->estimateTocPageCount($pdf, count($by_category));
+        for ($i = 0; $i < $toc_page_count; $i++) {
+            $pdf->AddPage();
+        }
+
+        // ── Pages produits : commencent après le sommaire ────────────────────
         $pdf->AddPage();
-        $this->renderProducts($pdf, $by_category, $profile);
+        $toc_entries = $this->renderProducts($pdf, $by_category, $profile);
+
+        // Remplir les pages sommaire (page 2 et suivantes si nécessaire)
+        $this->renderTableOfContents($pdf, $toc_entries, $toc_page_start, $toc_page_count);
 
         return $pdf;
     }
@@ -456,21 +542,32 @@ class CatalogPdfGenerator
         CustomCatalogTCPDF $pdf,
         array $by_category,
         CustomCatalogProfile $profile
-    ): void {
-        foreach ($by_category as $cat_name => $products) {
-            $this->drawCategoryHeader($pdf, $cat_name);
+    ): array {
+        $toc_entries = [];
+
+        foreach ($by_category as $category) {
+            $cat_name = (string) ($category['name'] ?? '—');
+            $products = $category['products'] ?? [];
+
+            $page_rel = $this->drawCategoryHeader($pdf, $cat_name);
+            $toc_entries[] = [
+                'title' => $cat_name,
+                'page'  => $page_rel,
+            ];
 
             foreach ($products as $product) {
                 $this->drawProduct($pdf, $product, $profile);
             }
         }
+
+        return $toc_entries;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // En-tête de catégorie
     // ─────────────────────────────────────────────────────────────────────────
 
-    private function drawCategoryHeader(CustomCatalogTCPDF $pdf, string $cat_name): void
+    private function drawCategoryHeader(CustomCatalogTCPDF $pdf, string $cat_name): int
     {
         $margin = $pdf->getOriginalMargins();
         $col_w  = $pdf->getPageWidth() - $margin['left'] - $margin['right'];
@@ -491,6 +588,78 @@ class CatalogPdfGenerator
 
         $pdf->SetTextColor(30, 30, 30);
         $pdf->Ln(3);
+
+        // Pagination relative identique au footer (sans la couverture)
+        return max(1, $pdf->getPage() - 1);
+    }
+
+    private function estimateTocPageCount(CustomCatalogTCPDF $pdf, int $entry_count): int
+    {
+        $entries_per_page = $this->getTocEntriesPerPage($pdf);
+        return max(1, (int) ceil(max(1, $entry_count) / $entries_per_page));
+    }
+
+    private function getTocEntriesPerPage(CustomCatalogTCPDF $pdf): int
+    {
+        $list_start_y = 50.0;
+        $line_h = 5.0;
+        $last_line_y = $pdf->getPageHeight() - $pdf->getBreakMargin() - 8;
+
+        return max(1, (int) floor(($last_line_y - $list_start_y) / $line_h));
+    }
+
+    private function renderTableOfContents(
+        CustomCatalogTCPDF $pdf,
+        array $toc_entries,
+        int $start_page_no,
+        int $toc_page_count
+    ): void
+    {
+        $margin = $pdf->getOriginalMargins();
+        $page_w = $pdf->getPageWidth();
+        $usable_w = $page_w - $margin['left'] - $margin['right'];
+        $entries_per_page = $this->getTocEntriesPerPage($pdf);
+
+        for ($page_offset = 0; $page_offset < $toc_page_count; $page_offset++) {
+            $pdf->setPage($start_page_no + $page_offset);
+
+            $pdf->SetXY($margin['left'], 34);
+            $pdf->SetFont('helvetica', 'B', 16);
+            $pdf->SetTextColor(30, 30, 30);
+            $pdf->Cell($usable_w, 8, ($page_offset === 0 ? 'Sommaire' : 'Sommaire (suite)'), 0, 1, 'L');
+
+            $pdf->SetFont('helvetica', '', 9);
+            $pdf->SetTextColor(120, 120, 120);
+            $pdf->Cell($usable_w, 5, 'Catégories et pagination', 0, 1, 'L');
+            $pdf->Ln(3);
+
+            $chunk = array_slice($toc_entries, $page_offset * $entries_per_page, $entries_per_page);
+
+            foreach ($chunk as $entry) {
+                $title = (string) ($entry['title'] ?? '—');
+                $page  = (int) ($entry['page'] ?? 0);
+
+                $x = $margin['left'];
+                $y = $pdf->GetY();
+                $num_w = 16;
+                $title_w = $usable_w - $num_w;
+
+                $pdf->SetFont('helvetica', '', 9);
+                $pdf->SetTextColor(55, 55, 55);
+                $pdf->SetXY($x, $y);
+                $pdf->Cell($title_w, 5, $title, 0, 0, 'L');
+
+                $pdf->SetTextColor(120, 120, 120);
+                $pdf->Cell($num_w, 5, (string) $page, 0, 1, 'R');
+
+                $line_y = $y + 4.2;
+                $pdf->SetDrawColor(220, 220, 220);
+                $pdf->SetLineStyle(['width' => 0.1, 'dash' => '1,1']);
+                $pdf->Line($x, $line_y, $x + $usable_w, $line_y);
+                $pdf->SetLineStyle(['width' => 0.2, 'dash' => 0]);
+                $pdf->SetDrawColor(0);
+            }
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -521,7 +690,26 @@ class CatalogPdfGenerator
 
         // ── Photo produit ────────────────────────────────────────────────
         if ($img_path !== '') {
-            $pdf->Image($img_path, $margin['left'] + 1, $y_start + 1, $img_size, $img_size, '', '', 'T', false, 96);
+            $img_x = $margin['left'] + 1;
+            $img_y = $y_start + 1;
+            [$src_w, $src_h] = @getimagesize($img_path) ?: [0, 0];
+
+            if ($src_w > 0 && $src_h > 0) {
+                if ($src_w >= $src_h) {
+                    $draw_w = $img_size;
+                    $draw_h = $img_size * ($src_h / $src_w);
+                } else {
+                    $draw_h = $img_size;
+                    $draw_w = $img_size * ($src_w / $src_h);
+                }
+
+                $draw_x = $img_x + (($img_size - $draw_w) / 2);
+                $draw_y = $img_y + (($img_size - $draw_h) / 2);
+                $pdf->Image($img_path, $draw_x, $draw_y, $draw_w, $draw_h, '', '', 'T', false, 96);
+            } else {
+                // Fallback si dimensions introuvables
+                $pdf->Image($img_path, $img_x, $img_y, $img_size, $img_size, '', '', 'T', false, 96);
+            }
         } else {
             $pdf->SetFillColor(230, 230, 230);
             $pdf->Rect($margin['left'] + 1, $y_start + 1, $img_size, $img_size, 'F');

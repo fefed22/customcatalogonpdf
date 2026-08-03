@@ -300,8 +300,26 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
     {
         $rows = Db::getInstance()->executeS('
             SELECT c.id_customer,
-                   CONCAT(c.lastname, " ", c.firstname, " <", c.email, ">") AS fullname
+                   CONCAT(
+                       c.lastname,
+                       " ",
+                       c.firstname,
+                       " - ",
+                       c.email,
+                       IF(
+                           COALESCE(NULLIF(TRIM(c.company), ""), ca.company_name) <> "",
+                           CONCAT(" - ", COALESCE(NULLIF(TRIM(c.company), ""), ca.company_name)),
+                           ""
+                       )
+                   ) AS fullname
             FROM `' . _DB_PREFIX_ . 'customer` c
+            LEFT JOIN (
+                SELECT a.id_customer,
+                       MAX(NULLIF(TRIM(a.company), "")) AS company_name
+                FROM `' . _DB_PREFIX_ . 'address` a
+                WHERE a.deleted = 0
+                GROUP BY a.id_customer
+            ) ca ON ca.id_customer = c.id_customer
             WHERE c.active = 1 AND c.deleted = 0
             ORDER BY c.lastname ASC, c.firstname ASC');
 
