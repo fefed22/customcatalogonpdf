@@ -1,0 +1,11 @@
+.customcatalog-price-export .purchase-price-options {
+  margin-top: 15px;
+}
+
+.customcatalog-price-export .select2-container {
+  width: 100% !important;
+}
+
+.customcatalog-price-export .panel-footer .btn + .btn {
+  margin-left: 5px;
+}

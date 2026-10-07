@@ -4,7 +4,7 @@
  * Génère des catalogues produits en PDF avec profils configurables.
  *
  * @author  Créa2média
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 if (!defined('_PS_VERSION_')) {
@@ -17,7 +17,7 @@ class CustomCatalogOnPdf extends Module
     {
         $this->name            = 'customcatalogonpdf';
         $this->tab             = 'administration';
-        $this->version         = '1.0.0';
+        $this->version         = '1.1.0';
         $this->author          = 'Créa2média';
         $this->need_instance   = 0;
         $this->bootstrap       = true;
@@ -73,28 +73,52 @@ class CustomCatalogOnPdf extends Module
 
     private function installTab(): bool
     {
-        $tab = new Tab();
-        $tab->active     = 1;
-        $tab->class_name = 'AdminCustomCatalogOnPdf';
-        $tab->name       = [];
-        foreach (Language::getLanguages(true) as $lang) {
-            $tab->name[$lang['id_lang']] = 'Catalogue PDF';
-        }
-        $tab->id_parent = (int) Tab::getIdFromClassName('AdminCatalog');
-        $tab->module    = $this->name;
-        $tab->icon      = 'picture_as_pdf';
+        return $this->installAdminTab(
+            'AdminCustomCatalogOnPdf',
+            'Catalogue PDF',
+            'picture_as_pdf'
+        ) && $this->installExportTab();
+    }
 
-        return (bool) $tab->add();
+    public function installExportTab(): bool
+    {
+        return $this->installAdminTab(
+            'AdminCustomCatalogPriceExport',
+            'Export tarifs',
+            'file_download'
+        );
     }
 
     private function uninstallTab(): bool
     {
-        $id_tab = (int) Tab::getIdFromClassName('AdminCustomCatalogOnPdf');
-        if ($id_tab) {
-            $tab = new Tab($id_tab);
-            return (bool) $tab->delete();
+        foreach (['AdminCustomCatalogPriceExport', 'AdminCustomCatalogOnPdf'] as $className) {
+            $idTab = (int) Tab::getIdFromClassName($className);
+            if ($idTab && !(new Tab($idTab))->delete()) {
+                return false;
+            }
         }
+
         return true;
+    }
+
+    private function installAdminTab(string $className, string $name, string $icon): bool
+    {
+        if ((int) Tab::getIdFromClassName($className) > 0) {
+            return true;
+        }
+
+        $tab = new Tab();
+        $tab->active = 1;
+        $tab->class_name = $className;
+        $tab->name = [];
+        foreach (Language::getLanguages(true) as $language) {
+            $tab->name[$language['id_lang']] = $name;
+        }
+        $tab->id_parent = (int) Tab::getIdFromClassName('AdminCatalog');
+        $tab->module = $this->name;
+        $tab->icon = $icon;
+
+        return (bool) $tab->add();
     }
 
     // -------------------------------------------------------------------------

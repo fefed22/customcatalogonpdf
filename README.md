@@ -22,6 +22,10 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - sommaire paginé par catégorie ;
 - en-têtes et pieds de page avec les informations de la boutique ;
 - téléchargement immédiat d'un fichier PDF daté.
+- export des tarifs en CSV ou Excel (XLSX) ;
+- tarif principal calculé pour un groupe ou un client spécifique ;
+- comparaison facultative avec le tarif d'un second groupe ;
+- ajout facultatif du prix d'achat HT d'un fournisseur.
 
 ## Exemple de nom de fichier
 
@@ -55,7 +59,9 @@ Aucune dépendance Composer supplémentaire n'est nécessaire au niveau du modul
 3. Cliquer sur **Installer**.
 4. Ouvrir **Catalogue > Catalogue PDF**.
 
-L'installation crée la table `PREFIX_customcatalogonpdf_profile` et ajoute l'entrée **Catalogue PDF** au menu **Catalogue** du back-office.
+L'installation crée la table `PREFIX_customcatalogonpdf_profile` et ajoute les entrées **Catalogue PDF** et **Export tarifs** au menu **Catalogue** du back-office.
+
+Lors d'une mise à jour depuis la version 1.0.0, le script `upgrade/upgrade-1.1.0.php` installe automatiquement le nouvel onglet **Export tarifs**.
 
 ## Utilisation
 
@@ -82,6 +88,17 @@ Les champs de groupe et de client sont affichés uniquement lorsque les prix et 
 3. Le module construit le catalogue et lance son téléchargement.
 
 Le document est généré dans la langue active du back-office et avec le contexte courant de boutique, devise et pays.
+
+### Exporter les tarifs
+
+Dans **Catalogue > Export tarifs** :
+
+1. sélectionner un groupe client ou rechercher un client spécifique ;
+2. sélectionner facultativement un groupe de comparaison ;
+3. activer facultativement le prix d'achat HT et sélectionner son fournisseur ;
+4. prévisualiser les tarifs ou lancer directement l'export CSV ou Excel.
+
+Le client spécifique est prioritaire sur le groupe principal. Le CSV utilise un point-virgule comme séparateur et contient un marqueur UTF-8. Le fichier Excel est généré au format XLSX avec filtres, ligne d'en-tête figée et colonnes de prix numériques.
 
 ## Modes tarifaires
 
@@ -159,12 +176,16 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`controllers/admin/AdminCustomCatalogOnPdfController.php`](controllers/admin/AdminCustomCatalogOnPdfController.php) | Liste des profils, formulaire de configuration et action de génération. |
 | [`classes/CustomCatalogProfile.php`](classes/CustomCatalogProfile.php) | Modèle de données d'un profil. |
 | [`classes/CatalogPdfGenerator.php`](classes/CatalogPdfGenerator.php) | Sélection des produits, calcul des prix et rendu TCPDF. |
+| [`classes/CatalogPriceExportService.php`](classes/CatalogPriceExportService.php) | Sélection des produits, calcul tarifaire et génération CSV/XLSX. |
+| [`controllers/admin/AdminCustomCatalogPriceExportController.php`](controllers/admin/AdminCustomCatalogPriceExportController.php) | Routage du formulaire, des téléchargements et de la recherche client. |
+| [`views/templates/admin/price_export.tpl`](views/templates/admin/price_export.tpl) | Interface générale de configuration et de prévisualisation de l'export. |
 | [`sql/install.php`](sql/install.php) | Création de la table des profils. |
 | [`sql/uninstall.php`](sql/uninstall.php) | Suppression de la table des profils. |
+| [`upgrade/upgrade-1.1.0.php`](upgrade/upgrade-1.1.0.php) | Installation du nouvel onglet lors d'une mise à jour. |
 
 ## Désinstallation
 
-La désinstallation retire l'entrée du menu et supprime la table du module.
+La désinstallation retire les deux entrées du menu et supprime la table du module.
 
 > **Attention :** tous les profils enregistrés sont définitivement supprimés lors de la désinstallation.
 

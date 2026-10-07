@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>customcatalogonpdf</name>
+    <displayName><![CDATA[Catalogue produits PDF]]></displayName>
+    <version><![CDATA[1.1.0]]></version>
+    <description><![CDATA[G&eacute;n&egrave;re des catalogues PDF et exporte les tarifs PrestaShop en CSV ou Excel.]]></description>
+    <author><![CDATA[Cr&eacute;a2m&eacute;dia]]></author>
+    <tab><![CDATA[administration]]></tab>
+    <is_configurable>1</is_configurable>
+    <need_instance>0</need_instance>
+</module>
