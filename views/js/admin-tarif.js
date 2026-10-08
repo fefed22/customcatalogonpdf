@@ -98,13 +98,27 @@
     // ── Construction d'une ligne ─────────────────────────────────────────────
     function renderBadges(line) {
       var html = '';
-      if (line.has_group_rule) {
+      if (line.reduction_source === 'group') {
         html += '<span class="tarif-badge tarif-badge-group">Remise groupe</span>';
-      }
-      if (line.has_customer_rule) {
+      } else if (line.reduction_source === 'customer') {
         html += '<span class="tarif-badge tarif-badge-customer">Remise client</span>';
+      } else if (line.reduction_source === 'custom') {
+        html += '<span class="tarif-badge tarif-badge-perso">Remise perso</span>';
       }
       return html;
+    }
+
+    function updateSourceBadge($row, source) {
+      var $badges = $row.find('.tarif-badges');
+      $badges.find('.tarif-badge-group, .tarif-badge-customer, .tarif-badge-perso').remove();
+      var label = '';
+      var cls = '';
+      if (source === 'group') { label = 'Remise groupe'; cls = 'tarif-badge-group'; }
+      else if (source === 'customer') { label = 'Remise client'; cls = 'tarif-badge-customer'; }
+      else if (source === 'custom') { label = 'Remise perso'; cls = 'tarif-badge-perso'; }
+      if (label) {
+        $badges.prepend('<span class="tarif-badge ' + cls + '">' + label + '</span>');
+      }
     }
 
     function renderLineRow(line) {
@@ -277,6 +291,7 @@
       api('UpdateLine', { id_line: idLine, mode: mode, value: value }, function (resp) {
         $row.find('.tarif-reduction').val(fmt(resp.line.reduction_percent));
         $row.find('.tarif-final').val(fmt(resp.line.final_price));
+        updateSourceBadge($row, resp.line.reduction_source);
       });
     }
 

@@ -133,8 +133,9 @@
                     {if $line.ean13} &middot; EAN : {$line.ean13|escape:'htmlall':'UTF-8'}{/if}
                   </span>
                   <span class="tarif-badges">
-                    {if $line.has_group_rule}<span class="tarif-badge tarif-badge-group">{l s='Remise groupe' mod='customcatalogonpdf'}</span>{/if}
-                    {if $line.has_customer_rule}<span class="tarif-badge tarif-badge-customer">{l s='Remise client' mod='customcatalogonpdf'}</span>{/if}
+                    {if $line.reduction_source == 'group'}<span class="tarif-badge tarif-badge-group">{l s='Remise groupe' mod='customcatalogonpdf'}</span>
+                    {elseif $line.reduction_source == 'customer'}<span class="tarif-badge tarif-badge-customer">{l s='Remise client' mod='customcatalogonpdf'}</span>
+                    {elseif $line.reduction_source == 'custom'}<span class="tarif-badge tarif-badge-perso">{l s='Remise perso' mod='customcatalogonpdf'}</span>{/if}
                     {if $line.has_changes}<span class="tarif-badge tarif-badge-changed" title="{l s='Catalogue' mod='customcatalogonpdf'} : {$line.base_price|string_format:"%.2f"} &rarr; {$line.live_base_price|string_format:"%.2f"} &euro; | {l s='Remise groupe' mod='customcatalogonpdf'} : {$line.group_reduction_percent|string_format:"%.2f"} &rarr; {$line.live_group_reduction_percent|string_format:"%.2f"} %">{l s='Prix modifiés' mod='customcatalogonpdf'}</span>{/if}
                   </span>
                 </span>

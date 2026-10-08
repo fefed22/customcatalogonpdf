@@ -545,17 +545,33 @@ class TarifService
 
         $storedBase = (float) $line['base_price'];
         $storedGroup = (float) $line['group_reduction_percent'];
+        $reductionPercent = (float) $line['reduction_percent'];
+        $currentPrice = (float) $line['current_price'];
+
         $liveBase = $storedBase;
         $liveGroup = $storedGroup;
+        $liveCurrent = $currentPrice;
         $hasChanges = false;
 
+        // En mode éditeur on dispose des prix actuels : ils servent à détecter
+        // les changements et à déterminer précisément l'origine de la réduction.
         if ($detectChanges) {
             $prices = $this->computeLinePrices($idProduct, $idProductAttribute, $idCustomer);
             $liveBase = $prices['catalog'];
             $liveGroup = $prices['group_reduction'];
+            $liveCurrent = $prices['current'];
             $hasChanges = abs($liveBase - $storedBase) >= 0.005
                 || abs($liveGroup - $storedGroup) >= 0.005;
         }
+
+        $hasCustomerRule = $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer);
+        $reductionSource = $this->resolveReductionSource(
+            $reductionPercent,
+            $liveGroup,
+            $liveBase,
+            $liveCurrent,
+            $hasCustomerRule
+        );
 
         return [
             'id_line' => (int) $line['id_line'],
@@ -570,15 +586,51 @@ class TarifService
             'id_image' => $info['id_image'] ?? 0,
             'base_price' => $storedBase,
             'group_reduction_percent' => $storedGroup,
-            'current_price' => (float) $line['current_price'],
-            'reduction_percent' => (float) $line['reduction_percent'],
+            'current_price' => $currentPrice,
+            'reduction_percent' => $reductionPercent,
             'final_price' => (float) $line['final_price'],
             'has_group_rule' => $storedGroup > 0,
-            'has_customer_rule' => $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer),
+            'has_customer_rule' => $hasCustomerRule,
+            'reduction_source' => $reductionSource,
             'live_base_price' => $liveBase,
             'live_group_reduction_percent' => $liveGroup,
             'has_changes' => $hasChanges,
         ];
+    }
+
+    /**
+     * Détermine l'origine de la réduction client affichée sur une ligne :
+     *  - 'group'    : le pourcentage correspond à la remise de groupe ;
+     *  - 'customer' : le pourcentage est verrouillé sur le client (prix
+     *                 spécifique client existant) ;
+     *  - 'custom'   : le pourcentage n'est encore ni sur le client ni issu du
+     *                 groupe (valeur négociée pas encore validée) ;
+     *  - 'none'     : aucune réduction.
+     */
+    private function resolveReductionSource(
+        float $reductionPercent,
+        float $groupReduction,
+        float $catalogPrice,
+        float $currentPrice,
+        bool $hasCustomerRule
+    ): string {
+        $tol = 0.01;
+
+        $customerPercent = ($hasCustomerRule && $catalogPrice > 0)
+            ? round((($catalogPrice - $currentPrice) / $catalogPrice) * 100, 2)
+            : null;
+
+        if ($customerPercent !== null && abs($reductionPercent - $customerPercent) < $tol) {
+            return 'customer';
+        }
+        if ($groupReduction > $tol && abs($reductionPercent - $groupReduction) < $tol) {
+            return 'group';
+        }
+        if (abs($reductionPercent) < $tol && $groupReduction < $tol && !$hasCustomerRule) {
+            return 'none';
+        }
+
+        return 'custom';
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -703,10 +755,31 @@ class TarifService
 
         $this->touchById($idTarif);
 
+        $tarif = new CustomCatalogTarif($idTarif);
+        $idCustomer = (int) $tarif->id_customer;
+        $hasCustomerRule = $this->hasCustomerSpecificPrice(
+            (int) $line['id_product'],
+            (int) $line['id_product_attribute'],
+            $idCustomer
+        );
+        $liveCurrent = $this->getCurrentPrice(
+            (int) $line['id_product'],
+            (int) $line['id_product_attribute'],
+            $idCustomer
+        );
+        $reductionSource = $this->resolveReductionSource(
+            $reductionPercent,
+            (float) $line['group_reduction_percent'],
+            $catalog,
+            $liveCurrent,
+            $hasCustomerRule
+        );
+
         return [
             'id_line' => (int) $idLine,
             'reduction_percent' => $reductionPercent,
             'final_price' => $finalPrice,
+            'reduction_source' => $reductionSource,
         ];
     }
 

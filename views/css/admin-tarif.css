@@ -176,6 +176,11 @@
   color: #b9770e;
 }
 
+.customcatalog-tarif-editor .tarif-badge-perso {
+  background: #e8e4f3;
+  color: #6c4bb0;
+}
+
 .customcatalog-tarif-editor .tarif-badge-changed {
   background: #fce4e4;
   color: #c0392b;
