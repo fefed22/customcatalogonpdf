@@ -26,6 +26,13 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - tarif principal calculé pour un groupe ou un client spécifique ;
 - comparaison facultative avec le tarif d'un second groupe ;
 - ajout facultatif du prix d'achat HT d'un fournisseur.
+- gestion de **tarifs clients** : documents de tarification rattachés à un client ;
+- organisation des produits en sections titrées, avec glisser-déposer ;
+- réduction en pourcentage par ligne appliquée au prix actuel du client ;
+- duplication d'un tarif vers un autre client ;
+- logo et nom personnalisés par tarif ;
+- export du tarif client en PDF, Excel et CSV (infos produit + prix final uniquement) ;
+- validation d'un tarif verrouillant les prix sous forme de prix spécifiques PrestaShop.
 
 ## Exemple de nom de fichier
 
@@ -63,6 +70,7 @@ L'installation crée la table `PREFIX_customcatalogonpdf_profile` et ajoute les 
 
 Lors d'une mise à jour depuis la version 1.0.0, le script `upgrade/upgrade-1.1.0.php` installe automatiquement le nouvel onglet **Export tarifs**.
 Le script `upgrade/upgrade-1.2.0.php` active par défaut le regroupement selon la catégorie associée la plus basse.
+Le script `upgrade/upgrade-1.3.0.php` crée les tables des **Tarifs clients** et ajoute l'onglet **Tarifs clients** au menu **Catalogue**.
 
 ## Utilisation
 
@@ -101,6 +109,33 @@ Dans **Catalogue > Export tarifs** :
 4. prévisualiser les tarifs ou lancer directement l'export CSV ou Excel.
 
 Le client spécifique est prioritaire sur le groupe principal. Le CSV utilise un point-virgule comme séparateur et contient un marqueur UTF-8. Le fichier Excel est généré au format XLSX avec filtres, ligne d'en-tête figée et colonnes de prix numériques.
+
+## Tarifs clients
+
+Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarification rattachés à un client, à la manière d'un devis.
+
+### Créer et composer un tarif
+
+1. Cliquer sur **Ajouter**, saisir un **nom**, sélectionner un **client** et, si besoin, téléverser un **logo**.
+2. Enregistrer : l'éditeur de contenu s'affiche sous le formulaire.
+3. Rechercher un produit (nom, référence ou EAN), choisir une section cible puis **Ajouter**.
+4. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer.
+
+Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix actuel HT** du client, un champ de **réduction en pourcentage** et le **prix final HT** recalculé automatiquement (`prix actuel × (1 − réduction %)`, arrondi à 2 décimales).
+
+Le bouton **Rafraîchir les prix** réactualise le prix actuel de chaque ligne selon les tarifs en vigueur pour le client.
+
+### Dupliquer
+
+Depuis l'éditeur, sélectionner un client cible puis **Dupliquer** : un nouveau tarif est créé pour ce client, les prix actuels étant recalculés pour lui.
+
+### Exporter
+
+Les boutons **PDF**, **Excel** et **CSV** produisent le document du tarif. Conformément aux règles du module, les exports ne contiennent que les informations produit et le **prix final** — jamais le prix d'origine ni la réduction.
+
+### Valider
+
+Le bouton **Valider** verrouille les prix du tarif sous forme de **prix spécifiques** PrestaShop pour le client. Pour chaque ligne, un pourcentage de réduction est calculé par rapport au prix de base catalogue afin d'atteindre le prix final (arrondi à 2 décimales). Toute règle existante du client sur le produit est écrasée, qu'il s'agisse d'une diminution ou d'une augmentation. Le tarif reste modifiable : une nouvelle validation réécrit les prix spécifiques.
 
 ## Modes tarifaires
 
@@ -181,10 +216,16 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`classes/CatalogPriceExportService.php`](classes/CatalogPriceExportService.php) | Sélection des produits, calcul tarifaire et génération CSV/XLSX. |
 | [`controllers/admin/AdminCustomCatalogPriceExportController.php`](controllers/admin/AdminCustomCatalogPriceExportController.php) | Routage du formulaire, des téléchargements et de la recherche client. |
 | [`views/templates/admin/price_export.tpl`](views/templates/admin/price_export.tpl) | Interface générale de configuration et de prévisualisation de l'export. |
+| [`controllers/admin/AdminCustomCatalogTarifController.php`](controllers/admin/AdminCustomCatalogTarifController.php) | Liste, formulaire, éditeur, AJAX, exports et validation des tarifs clients. |
+| [`classes/CustomCatalogTarif.php`](classes/CustomCatalogTarif.php) | Modèle de données d'un tarif client. |
+| [`classes/TarifService.php`](classes/TarifService.php) | Recherche, calcul des prix, sections/lignes, duplication, validation et exports. |
+| [`classes/TarifPdfGenerator.php`](classes/TarifPdfGenerator.php) | Génération PDF d'un tarif client (prix final uniquement). |
+| [`views/templates/admin/tarif_editor.tpl`](views/templates/admin/tarif_editor.tpl) | Éditeur de sections et de lignes d'un tarif. |
 | [`sql/install.php`](sql/install.php) | Création de la table des profils. |
 | [`sql/uninstall.php`](sql/uninstall.php) | Suppression de la table des profils. |
 | [`upgrade/upgrade-1.1.0.php`](upgrade/upgrade-1.1.0.php) | Installation du nouvel onglet lors d'une mise à jour. |
 | [`upgrade/upgrade-1.2.0.php`](upgrade/upgrade-1.2.0.php) | Ajout du réglage de catégorie la plus basse lors d'une mise à jour. |
+| [`upgrade/upgrade-1.3.0.php`](upgrade/upgrade-1.3.0.php) | Création des tables de tarifs clients et de l'onglet dédié. |
 
 ## Désinstallation
 

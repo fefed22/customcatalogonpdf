@@ -4,7 +4,7 @@
  * Génère des catalogues produits en PDF avec profils configurables.
  *
  * @author  Créa2média
- * @version 1.2.0
+ * @version 1.3.0
  */
 
 if (!defined('_PS_VERSION_')) {
@@ -17,7 +17,7 @@ class CustomCatalogOnPdf extends Module
     {
         $this->name            = 'customcatalogonpdf';
         $this->tab             = 'administration';
-        $this->version         = '1.2.0';
+        $this->version         = '1.3.0';
         $this->author          = 'Créa2média';
         $this->need_instance   = 0;
         $this->bootstrap       = true;
@@ -77,7 +77,7 @@ class CustomCatalogOnPdf extends Module
             'AdminCustomCatalogOnPdf',
             'Catalogue PDF',
             'picture_as_pdf'
-        ) && $this->installExportTab();
+        ) && $this->installExportTab() && $this->installTarifTab();
     }
 
     public function installExportTab(): bool
@@ -89,9 +89,18 @@ class CustomCatalogOnPdf extends Module
         );
     }
 
+    public function installTarifTab(): bool
+    {
+        return $this->installAdminTab(
+            'AdminCustomCatalogTarif',
+            'Tarifs clients',
+            'request_quote'
+        );
+    }
+
     private function uninstallTab(): bool
     {
-        foreach (['AdminCustomCatalogPriceExport', 'AdminCustomCatalogOnPdf'] as $className) {
+        foreach (['AdminCustomCatalogTarif', 'AdminCustomCatalogPriceExport', 'AdminCustomCatalogOnPdf'] as $className) {
             $idTab = (int) Tab::getIdFromClassName($className);
             if ($idTab && !(new Tab($idTab))->delete()) {
                 return false;
