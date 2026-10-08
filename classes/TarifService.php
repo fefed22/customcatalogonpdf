@@ -140,6 +140,15 @@ class TarifService
                 continue;
             }
 
+            // Entrée globale : ajoute toutes les déclinaisons du produit
+            $results[] = [
+                'id' => $idProduct . ':all',
+                'text' => $p['name'] . ' — ' . sprintf(
+                    $this->module->l('Toutes les déclinaisons (%d)'),
+                    count($combinations)
+                ),
+            ];
+
             foreach ($combinations as $combination) {
                 $results[] = [
                     'id' => $idProduct . ':' . (int) $combination['id_product_attribute'],
@@ -583,6 +592,50 @@ class TarifService
             throw new RuntimeException($this->module->l('Tarif introuvable.'));
         }
 
+        return $this->insertLine($tarif, $idProduct, $idProductAttribute, $idSection);
+    }
+
+    /**
+     * Ajoute une ligne pour chaque déclinaison d'un produit déclinable.
+     *
+     * @return array Lignes décorées
+     */
+    public function addAllCombinations(int $idTarif, int $idProduct, int $idSection): array
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+
+        $combinations = $this->getCombinations($idProduct, (int) $this->context->language->id);
+        if (empty($combinations)) {
+            // Produit sans déclinaison : on ajoute le produit global
+            return [$this->insertLine($tarif, $idProduct, 0, $idSection)];
+        }
+
+        $lines = [];
+        foreach ($combinations as $combination) {
+            $lines[] = $this->insertLine(
+                $tarif,
+                $idProduct,
+                (int) $combination['id_product_attribute'],
+                $idSection
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Insère une ligne (produit ou déclinaison) et retourne sa représentation.
+     */
+    private function insertLine(
+        CustomCatalogTarif $tarif,
+        int $idProduct,
+        int $idProductAttribute,
+        int $idSection
+    ): array {
+        $idTarif = (int) $tarif->id;
         $prices = $this->computeLinePrices($idProduct, $idProductAttribute, (int) $tarif->id_customer);
         $catalog = $prices['catalog'];
         $current = $prices['current'];
@@ -593,10 +646,10 @@ class TarifService
         $position = (int) Db::getInstance()->getValue('
             SELECT IFNULL(MAX(position), -1) + 1
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
-            WHERE id_tarif = ' . (int) $idTarif . ' AND id_section = ' . (int) $idSection);
+            WHERE id_tarif = ' . $idTarif . ' AND id_section = ' . (int) $idSection);
 
         Db::getInstance()->insert('customcatalogonpdf_tarif_line', [
-            'id_tarif' => (int) $idTarif,
+            'id_tarif' => $idTarif,
             'id_section' => (int) $idSection,
             'id_product' => (int) $idProduct,
             'id_product_attribute' => (int) $idProductAttribute,

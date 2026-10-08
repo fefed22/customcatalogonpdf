@@ -230,7 +230,11 @@
       var idSection = parseInt($('#tarif-target-section').val(), 10) || 0;
 
       api('AddLine', { product: product, id_section: idSection }, function (resp) {
-        $('.tarif-lines[data-id-section="' + idSection + '"]').append(renderLineRow(resp.line));
+        var $target = $('.tarif-lines[data-id-section="' + idSection + '"]');
+        var lines = resp.lines || (resp.line ? [resp.line] : []);
+        $.each(lines, function (i, line) {
+          $target.append(renderLineRow(line));
+        });
         $productSearch.select2('val', '');
         initSortables();
       });

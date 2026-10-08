@@ -119,7 +119,7 @@ Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarific
 
 1. Cliquer sur **Ajouter**, saisir un **nom**, sélectionner un **client** et, si besoin, téléverser un **logo**.
 2. Enregistrer : l'éditeur de contenu s'affiche sous le formulaire.
-3. Rechercher un produit (nom, référence ou EAN), choisir une section cible puis **Ajouter**.
+3. Rechercher un produit (nom, référence ou EAN), choisir une section cible puis **Ajouter**. Pour un produit à déclinaisons, la recherche propose chaque déclinaison individuellement **et** une entrée globale « Toutes les déclinaisons » qui les ajoute toutes d'un coup dans la section.
 4. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer.
 
 Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix catalogue HT**, la **remise de groupe** du client (non modifiable, pour information), un champ de **réduction client en pourcentage** et le **prix final HT**. La réduction client et le prix final sont liés en direct : saisir l'un recalcule l'autre instantanément (réduction et prix final sont exprimés par rapport au prix catalogue, arrondis à 2 décimales). Des pastilles signalent si le client bénéficie déjà d'une remise de groupe et/ou d'une remise qui lui est propre.

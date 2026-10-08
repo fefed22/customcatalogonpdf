@@ -448,10 +448,17 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
     {
         try {
             $idTarif = (int) Tools::getValue('id_tarif');
-            [$idProduct, $idProductAttribute] = $this->parseProductId((string) Tools::getValue('product'));
             $idSection = (int) Tools::getValue('id_section');
-            $line = $this->service->addLine($idTarif, $idProduct, $idProductAttribute, $idSection);
-            $this->ajaxRender(json_encode(['success' => true, 'line' => $line]));
+            $raw = (string) Tools::getValue('product');
+
+            if (preg_match('/^(\d+):all$/', $raw, $m)) {
+                $lines = $this->service->addAllCombinations($idTarif, (int) $m[1], $idSection);
+            } else {
+                [$idProduct, $idProductAttribute] = $this->parseProductId($raw);
+                $lines = [$this->service->addLine($idTarif, $idProduct, $idProductAttribute, $idSection)];
+            }
+
+            $this->ajaxRender(json_encode(['success' => true, 'lines' => $lines]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
         }
