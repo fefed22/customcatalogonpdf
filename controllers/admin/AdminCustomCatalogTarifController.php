@@ -294,7 +294,12 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     public function displayValidatetarifLink($token, int $id, $name = null): string
     {
-        return $this->buildRowAction($id, 'validatetarif', 'icon-lock', $this->l('Valider'));
+        $url = self::$currentIndex . '&token=' . $this->token . '&id_tarif=' . $id . '&validatetarif=1';
+        $confirm = $this->l('Valider ce tarif et verrouiller les prix spécifiques du client ?');
+
+        return '<a class="btn btn-default btn-xs" href="' . $url . '" title="' . $this->l('Valider') . '"'
+            . ' onclick="return confirm(\'' . addslashes($confirm) . '\');">'
+            . '<i class="icon-lock"></i>&nbsp;' . $this->l('Valider') . '</a>';
     }
 
     private function buildRowAction(int $id, string $param, string $icon, string $label): string
@@ -393,7 +398,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     private function renderEditor(CustomCatalogTarif $tarif): string
     {
-        $data = $this->service->getTarifData((int) $tarif->id);
+        $data = $this->service->getTarifData((int) $tarif->id, true);
         $ajaxUrl = self::$currentIndex . '&token=' . $this->token;
 
         $tpl = $this->createTemplate('tarif_editor.tpl');
@@ -407,6 +412,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             ],
             'sections' => $data['sections'] ?? [],
             'customer' => $data['customer'] ?? null,
+            'has_changes' => !empty($data['has_changes']),
             'ajax_url' => $ajaxUrl,
             'product_search_url' => $ajaxUrl . '&ajax=1&action=SearchProducts',
             'customer_search_url' => $ajaxUrl . '&ajax=1&action=SearchCustomers',
@@ -456,8 +462,9 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         try {
             $idTarif = (int) Tools::getValue('id_tarif');
             $idLine = (int) Tools::getValue('id_line');
-            $reduction = $this->parseFloat((string) Tools::getValue('reduction_percent'));
-            $result = $this->service->updateLineReduction($idTarif, $idLine, $reduction);
+            $mode = Tools::getValue('mode') === 'price' ? 'price' : 'reduction';
+            $value = $this->parseFloat((string) Tools::getValue('value'));
+            $result = $this->service->updateLine($idTarif, $idLine, $mode, $value);
             $this->ajaxRender(json_encode(['success' => true, 'line' => $result]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
@@ -536,6 +543,16 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         try {
             $this->service->refreshPrices((int) Tools::getValue('id_tarif'));
             $this->ajaxRender(json_encode(['success' => true]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessSyncPrices(): void
+    {
+        try {
+            $updated = $this->service->syncPrices((int) Tools::getValue('id_tarif'));
+            $this->ajaxRender(json_encode(['success' => true, 'updated' => $updated]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
         }

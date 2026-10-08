@@ -2,10 +2,36 @@
   margin-bottom: 10px;
 }
 
+.customcatalog-tarif-editor .tarif-toolbar label {
+  display: block;
+}
+
+/* Recherche produit + sélection de section */
+.customcatalog-tarif-editor .tarif-add-group {
+  display: flex;
+  gap: 6px;
+}
+
+.customcatalog-tarif-editor .tarif-add-group select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.customcatalog-tarif-editor .tarif-add-group .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .customcatalog-tarif-editor .tarif-toolbar-buttons .btn {
   margin-bottom: 5px;
 }
 
+/* Le conteneur select2 de la recherche produit prend toute la largeur */
+.customcatalog-tarif-editor .tarif-toolbar .select2-container {
+  width: 100% !important;
+}
+
+/* Sections */
 .customcatalog-tarif-editor .tarif-section {
   border: 1px solid #e0e6ed;
   border-radius: 4px;
@@ -43,43 +69,60 @@
   color: #99a8bb;
 }
 
-.customcatalog-tarif-editor .tarif-lines-table {
-  margin-bottom: 0;
+/* Grille des lignes */
+.customcatalog-tarif-editor .tarif-lines-head,
+.customcatalog-tarif-editor .tarif-line {
+  display: grid;
+  grid-template-columns: 26px 54px minmax(160px, 1fr) 100px 100px 110px 130px 40px;
+  align-items: center;
+  column-gap: 6px;
+  padding: 4px 10px;
 }
 
-.customcatalog-tarif-editor .tarif-lines-table th {
-  font-size: 12px;
+.customcatalog-tarif-editor .tarif-lines-head {
+  font-size: 11px;
+  font-weight: bold;
   color: #6b7a90;
+  text-transform: uppercase;
+  border-bottom: 1px solid #eef1f5;
+}
+
+.customcatalog-tarif-editor .tarif-line {
+  border-bottom: 1px solid #f2f4f7;
+}
+
+.customcatalog-tarif-editor .tarif-line:hover {
+  background: #f8fafc;
+}
+
+.customcatalog-tarif-editor .tarif-cell {
+  min-width: 0;
 }
 
 .customcatalog-tarif-editor .tarif-col-drag {
-  width: 24px;
   text-align: center;
-  vertical-align: middle;
 }
 
 .customcatalog-tarif-editor .tarif-col-img {
-  width: 56px;
   text-align: center;
-  vertical-align: middle;
 }
 
-.customcatalog-tarif-editor .tarif-col-price {
-  width: 120px;
+.customcatalog-tarif-editor .tarif-col-num {
   text-align: right;
-  vertical-align: middle;
   white-space: nowrap;
 }
 
-.customcatalog-tarif-editor .tarif-col-reduction {
-  width: 110px;
-  vertical-align: middle;
+.customcatalog-tarif-editor .tarif-lines-head .tarif-col-info,
+.customcatalog-tarif-editor .tarif-col-info {
+  text-align: left;
 }
 
 .customcatalog-tarif-editor .tarif-col-actions {
-  width: 44px;
   text-align: center;
-  vertical-align: middle;
+}
+
+.customcatalog-tarif-editor .tarif-col-info strong {
+  display: block;
 }
 
 .customcatalog-tarif-editor .tarif-thumb {
@@ -98,19 +141,81 @@
 }
 
 .customcatalog-tarif-editor .tarif-attrs {
+  display: block;
   font-size: 12px;
   color: #5b6b7f;
 }
 
 .customcatalog-tarif-editor .tarif-meta {
+  display: block;
   font-size: 11px;
   color: #99a8bb;
 }
 
+.customcatalog-tarif-editor .tarif-badges {
+  display: block;
+  margin-top: 2px;
+}
+
+.customcatalog-tarif-editor .tarif-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-right: 4px;
+}
+
+.customcatalog-tarif-editor .tarif-badge-group {
+  background: #e7f0fb;
+  color: #2f6fb0;
+}
+
+.customcatalog-tarif-editor .tarif-badge-customer {
+  background: #fdebd3;
+  color: #b9770e;
+}
+
+.customcatalog-tarif-editor .tarif-badge-changed {
+  background: #fce4e4;
+  color: #c0392b;
+  cursor: help;
+}
+
+.customcatalog-tarif-editor .tarif-changes-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.customcatalog-tarif-editor .tarif-changes-alert .btn {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.customcatalog-tarif-editor .tarif-catalog {
+  color: #6b7a90;
+}
+
+.customcatalog-tarif-editor .tarif-group {
+  color: #2f6fb0;
+}
+
+.customcatalog-tarif-editor .tarif-col-num .form-control {
+  text-align: right;
+  padding: 4px 6px;
+  height: 30px;
+}
+
+.customcatalog-tarif-editor .tarif-final-group .input-group-addon {
+  padding: 4px 8px;
+}
+
 .customcatalog-tarif-editor .tarif-line-placeholder {
-  height: 48px;
+  height: 52px;
   background: #fff8e1;
   border: 1px dashed #f0c36d;
+  margin: 2px 0;
 }
 
 .customcatalog-tarif-editor .tarif-duplicate-form {

@@ -71,6 +71,7 @@ L'installation crée la table `PREFIX_customcatalogonpdf_profile` et ajoute les 
 Lors d'une mise à jour depuis la version 1.0.0, le script `upgrade/upgrade-1.1.0.php` installe automatiquement le nouvel onglet **Export tarifs**.
 Le script `upgrade/upgrade-1.2.0.php` active par défaut le regroupement selon la catégorie associée la plus basse.
 Le script `upgrade/upgrade-1.3.0.php` crée les tables des **Tarifs clients** et ajoute l'onglet **Tarifs clients** au menu **Catalogue**.
+Le script `upgrade/upgrade-1.3.1.php` ajoute la colonne `group_reduction_percent` (remise de groupe) à la table des lignes de tarif.
 
 ## Utilisation
 
@@ -121,9 +122,13 @@ Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarific
 3. Rechercher un produit (nom, référence ou EAN), choisir une section cible puis **Ajouter**.
 4. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer.
 
-Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix actuel HT** du client, un champ de **réduction en pourcentage** et le **prix final HT** recalculé automatiquement (`prix actuel × (1 − réduction %)`, arrondi à 2 décimales).
+Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix catalogue HT**, la **remise de groupe** du client (non modifiable, pour information), un champ de **réduction client en pourcentage** et le **prix final HT**. La réduction client et le prix final sont liés en direct : saisir l'un recalcule l'autre instantanément (réduction et prix final sont exprimés par rapport au prix catalogue, arrondis à 2 décimales). Des pastilles signalent si le client bénéficie déjà d'une remise de groupe et/ou d'une remise qui lui est propre.
 
-Le bouton **Rafraîchir les prix** réactualise le prix actuel de chaque ligne selon les tarifs en vigueur pour le client.
+Le bouton **Rafraîchir les prix** réactualise le prix catalogue, la remise de groupe et le prix actuel de chaque ligne selon les tarifs en vigueur (la réduction client est conservée, le prix final suit).
+
+### Détection des changements de prix
+
+À l'ouverture d'un tarif, le module compare le prix catalogue et la remise de groupe enregistrés avec les valeurs actuelles. En cas d'écart, une pastille **« Prix modifiés »** s'affiche sur les lignes concernées (avec le détail au survol) et une bannière propose **« Mettre à jour en conservant les prix finaux »**. Cette mise à jour réactualise le prix catalogue et la remise de groupe, recalcule la réduction client de façon à **préserver le prix final**, et — si le tarif est validé — **adapte le prix spécifique du client** pour qu'il continue de payer ce même prix final malgré le changement de tarif catalogue.
 
 ### Dupliquer
 
@@ -135,7 +140,7 @@ Les boutons **PDF**, **Excel** et **CSV** produisent le document du tarif. Confo
 
 ### Valider
 
-Le bouton **Valider** verrouille les prix du tarif sous forme de **prix spécifiques** PrestaShop pour le client. Pour chaque ligne, un pourcentage de réduction est calculé par rapport au prix de base catalogue afin d'atteindre le prix final (arrondi à 2 décimales). Toute règle existante du client sur le produit est écrasée, qu'il s'agisse d'une diminution ou d'une augmentation. Le tarif reste modifiable : une nouvelle validation réécrit les prix spécifiques.
+Le bouton **Valider** verrouille les prix du tarif sous forme de **prix spécifiques** PrestaShop pour le client, après une confirmation. Pour chaque ligne, un pourcentage de réduction est calculé par rapport au prix de base catalogue afin d'atteindre le prix final (arrondi à 2 décimales). Seules les règles propres au client sont créées ou écrasées — les **remises de groupe ne sont jamais modifiées**. Si le prix final correspond au prix de groupe du client (pas de dérogation), aucune règle client n'est créée et toute règle client antérieure est retirée, le client conservant simplement sa remise de groupe. Le tarif reste modifiable : une nouvelle validation réécrit les prix spécifiques.
 
 ## Modes tarifaires
 
@@ -226,6 +231,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`upgrade/upgrade-1.1.0.php`](upgrade/upgrade-1.1.0.php) | Installation du nouvel onglet lors d'une mise à jour. |
 | [`upgrade/upgrade-1.2.0.php`](upgrade/upgrade-1.2.0.php) | Ajout du réglage de catégorie la plus basse lors d'une mise à jour. |
 | [`upgrade/upgrade-1.3.0.php`](upgrade/upgrade-1.3.0.php) | Création des tables de tarifs clients et de l'onglet dédié. |
+| [`upgrade/upgrade-1.3.1.php`](upgrade/upgrade-1.3.1.php) | Ajout de la colonne de remise de groupe aux lignes de tarif. |
 
 ## Désinstallation
 

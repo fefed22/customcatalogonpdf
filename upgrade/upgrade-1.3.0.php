@@ -37,6 +37,7 @@ function upgrade_module_1_3_0($module): bool
             `id_product_attribute`  INT(10) UNSIGNED NOT NULL DEFAULT 0,
             `position`              INT(10) UNSIGNED NOT NULL DEFAULT 0,
             `base_price`            DECIMAL(20,6)    NOT NULL DEFAULT 0,
+            `group_reduction_percent` DECIMAL(10,4)  NOT NULL DEFAULT 0,
             `current_price`         DECIMAL(20,6)    NOT NULL DEFAULT 0,
             `reduction_percent`     DECIMAL(10,4)    NOT NULL DEFAULT 0,
             `final_price`           DECIMAL(20,6)    NOT NULL DEFAULT 0,

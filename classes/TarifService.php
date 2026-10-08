@@ -256,9 +256,119 @@ class TarifService
         );
     }
 
-    private function computeFinalPrice(float $currentPrice, float $reductionPercent): float
+    /**
+     * Prix HT appliqué à un groupe client (remise groupe uniquement, sans client).
+     */
+    public function getGroupPrice(int $idProduct, int $idProductAttribute, int $idGroup): float
     {
-        return round($currentPrice * (1 - ($reductionPercent / 100)), 2);
+        if ($idGroup <= 0) {
+            return $this->getBasePrice($idProduct, $idProductAttribute);
+        }
+
+        $idCurrency = Validate::isLoadedObject($this->context->currency)
+            ? (int) $this->context->currency->id
+            : (int) Currency::getDefaultCurrencyId();
+        $idCountry = Validate::isLoadedObject($this->context->country)
+            ? (int) $this->context->country->id
+            : (int) Configuration::get('PS_COUNTRY_DEFAULT');
+        $sp = null;
+
+        return (float) Product::priceCalculation(
+            (int) $this->context->shop->id,
+            $idProduct,
+            $idProductAttribute ?: null,
+            $idCountry,
+            0,
+            '',
+            $idCurrency,
+            $idGroup,
+            1,
+            false,
+            6,
+            false,
+            true,
+            true,
+            $sp,
+            true,
+            0,
+            false,
+            0,
+            0,
+            0
+        );
+    }
+
+    /**
+     * Groupe par défaut d'un client (0 si aucun).
+     */
+    public function getCustomerDefaultGroup(int $idCustomer): int
+    {
+        if ($idCustomer <= 0) {
+            return 0;
+        }
+
+        return (int) Db::getInstance()->getValue(
+            'SELECT id_default_group FROM `' . _DB_PREFIX_ . 'customer` WHERE id_customer = ' . (int) $idCustomer
+        );
+    }
+
+    /**
+     * Indique si le client possède un prix spécifique qui lui est propre.
+     */
+    public function hasCustomerSpecificPrice(int $idProduct, int $idProductAttribute, int $idCustomer): bool
+    {
+        if ($idCustomer <= 0) {
+            return false;
+        }
+
+        return (bool) Db::getInstance()->getValue('
+            SELECT 1 FROM `' . _DB_PREFIX_ . 'specific_price`
+            WHERE id_customer = ' . (int) $idCustomer . '
+              AND id_product = ' . (int) $idProduct . '
+              AND (id_product_attribute = ' . (int) $idProductAttribute . ' OR id_product_attribute = 0)');
+    }
+
+    /**
+     * Calcule les prix d'une ligne pour un client : catalogue, remise groupe,
+     * prix actuel effectif.
+     *
+     * @return array{catalog:float,group_reduction:float,current:float,id_group:int}
+     */
+    private function computeLinePrices(int $idProduct, int $idProductAttribute, int $idCustomer): array
+    {
+        $catalog = $this->getBasePrice($idProduct, $idProductAttribute);
+        $idGroup = $this->getCustomerDefaultGroup($idCustomer);
+        $groupPrice = $this->getGroupPrice($idProduct, $idProductAttribute, $idGroup);
+        $current = $this->getCurrentPrice($idProduct, $idProductAttribute, $idCustomer);
+
+        $groupReduction = $catalog > 0 ? round((($catalog - $groupPrice) / $catalog) * 100, 2) : 0.0;
+
+        return [
+            'catalog' => $catalog,
+            'group_reduction' => $groupReduction,
+            'current' => $current,
+            'id_group' => $idGroup,
+        ];
+    }
+
+    /**
+     * Prix final HT à partir du prix catalogue et d'une réduction client (%).
+     */
+    private function computeFinalFromReduction(float $catalogPrice, float $reductionPercent): float
+    {
+        return round($catalogPrice * (1 - ($reductionPercent / 100)), 2);
+    }
+
+    /**
+     * Réduction client (%) à partir du prix catalogue et d'un prix final.
+     */
+    private function computeReductionFromFinal(float $catalogPrice, float $finalPrice): float
+    {
+        if ($catalogPrice <= 0) {
+            return 0.0;
+        }
+
+        return round((($catalogPrice - $finalPrice) / $catalogPrice) * 100, 4);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -355,7 +465,7 @@ class TarifService
     // Lecture d'un tarif complet (éditeur / exports)
     // ─────────────────────────────────────────────────────────────────────────
 
-    public function getTarifData(int $idTarif): ?array
+    public function getTarifData(int $idTarif, bool $detectChanges = false): ?array
     {
         $tarif = new CustomCatalogTarif($idTarif);
         if (!Validate::isLoadedObject($tarif)) {
@@ -375,24 +485,13 @@ class TarifService
             ORDER BY position ASC, id_line ASC') ?: [];
 
         $linesBySection = [];
+        $hasChanges = false;
         foreach ($lines as $line) {
-            $info = $this->getProductInfo((int) $line['id_product'], (int) $line['id_product_attribute']);
-            $linesBySection[(int) $line['id_section']][] = [
-                'id_line' => (int) $line['id_line'],
-                'id_section' => (int) $line['id_section'],
-                'id_product' => (int) $line['id_product'],
-                'id_product_attribute' => (int) $line['id_product_attribute'],
-                'name' => $info['name'] ?? ('#' . (int) $line['id_product']),
-                'attribute_names' => $info['attribute_names'] ?? '',
-                'reference' => $info['reference'] ?? '',
-                'ean13' => $info['ean13'] ?? '',
-                'image_url' => $info['image_url'] ?? '',
-                'id_image' => $info['id_image'] ?? 0,
-                'base_price' => (float) $line['base_price'],
-                'current_price' => (float) $line['current_price'],
-                'reduction_percent' => (float) $line['reduction_percent'],
-                'final_price' => (float) $line['final_price'],
-            ];
+            $decorated = $this->decorateLine($line, (int) $tarif->id_customer, $detectChanges);
+            if (!empty($decorated['has_changes'])) {
+                $hasChanges = true;
+            }
+            $linesBySection[(int) $line['id_section']][] = $decorated;
         }
 
         $sectionList = [];
@@ -418,6 +517,58 @@ class TarifService
             'tarif' => $tarif,
             'customer' => $this->getCustomerOption((int) $tarif->id_customer),
             'sections' => $sectionList,
+            'has_changes' => $hasChanges,
+        ];
+    }
+
+    /**
+     * Construit la représentation complète d'une ligne (infos produit + prix +
+     * indicateurs de remise) à partir d'un enregistrement stocké.
+     *
+     * Si $detectChanges est vrai, compare le prix catalogue et la remise de
+     * groupe stockés avec les valeurs actuelles et signale tout écart.
+     */
+    private function decorateLine(array $line, int $idCustomer, bool $detectChanges = false): array
+    {
+        $idProduct = (int) $line['id_product'];
+        $idProductAttribute = (int) $line['id_product_attribute'];
+        $info = $this->getProductInfo($idProduct, $idProductAttribute);
+
+        $storedBase = (float) $line['base_price'];
+        $storedGroup = (float) $line['group_reduction_percent'];
+        $liveBase = $storedBase;
+        $liveGroup = $storedGroup;
+        $hasChanges = false;
+
+        if ($detectChanges) {
+            $prices = $this->computeLinePrices($idProduct, $idProductAttribute, $idCustomer);
+            $liveBase = $prices['catalog'];
+            $liveGroup = $prices['group_reduction'];
+            $hasChanges = abs($liveBase - $storedBase) >= 0.005
+                || abs($liveGroup - $storedGroup) >= 0.005;
+        }
+
+        return [
+            'id_line' => (int) $line['id_line'],
+            'id_section' => (int) $line['id_section'],
+            'id_product' => $idProduct,
+            'id_product_attribute' => $idProductAttribute,
+            'name' => $info['name'] ?? ('#' . $idProduct),
+            'attribute_names' => $info['attribute_names'] ?? '',
+            'reference' => $info['reference'] ?? '',
+            'ean13' => $info['ean13'] ?? '',
+            'image_url' => $info['image_url'] ?? '',
+            'id_image' => $info['id_image'] ?? 0,
+            'base_price' => $storedBase,
+            'group_reduction_percent' => $storedGroup,
+            'current_price' => (float) $line['current_price'],
+            'reduction_percent' => (float) $line['reduction_percent'],
+            'final_price' => (float) $line['final_price'],
+            'has_group_rule' => $storedGroup > 0,
+            'has_customer_rule' => $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer),
+            'live_base_price' => $liveBase,
+            'live_group_reduction_percent' => $liveGroup,
+            'has_changes' => $hasChanges,
         ];
     }
 
@@ -432,9 +583,12 @@ class TarifService
             throw new RuntimeException($this->module->l('Tarif introuvable.'));
         }
 
-        $basePrice = $this->getBasePrice($idProduct, $idProductAttribute);
-        $currentPrice = $this->getCurrentPrice($idProduct, $idProductAttribute, (int) $tarif->id_customer);
-        $finalPrice = $this->computeFinalPrice($currentPrice, 0.0);
+        $prices = $this->computeLinePrices($idProduct, $idProductAttribute, (int) $tarif->id_customer);
+        $catalog = $prices['catalog'];
+        $current = $prices['current'];
+        // Réduction client par défaut : celle qui reproduit le prix actuel du client
+        $reductionPercent = $catalog > 0 ? $this->computeReductionFromFinal($catalog, $current) : 0.0;
+        $finalPrice = $current;
 
         $position = (int) Db::getInstance()->getValue('
             SELECT IFNULL(MAX(position), -1) + 1
@@ -447,35 +601,29 @@ class TarifService
             'id_product' => (int) $idProduct,
             'id_product_attribute' => (int) $idProductAttribute,
             'position' => $position,
-            'base_price' => $basePrice,
-            'current_price' => $currentPrice,
-            'reduction_percent' => 0,
+            'base_price' => $catalog,
+            'group_reduction_percent' => $prices['group_reduction'],
+            'current_price' => $current,
+            'reduction_percent' => $reductionPercent,
             'final_price' => $finalPrice,
         ]);
 
         $idLine = (int) Db::getInstance()->Insert_ID();
         $this->touch($tarif);
 
-        $info = $this->getProductInfo($idProduct, $idProductAttribute);
+        $row = Db::getInstance()->getRow('
+            SELECT * FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_line = ' . $idLine);
 
-        return [
-            'id_line' => $idLine,
-            'id_section' => (int) $idSection,
-            'id_product' => (int) $idProduct,
-            'id_product_attribute' => (int) $idProductAttribute,
-            'name' => $info['name'] ?? '',
-            'attribute_names' => $info['attribute_names'] ?? '',
-            'reference' => $info['reference'] ?? '',
-            'ean13' => $info['ean13'] ?? '',
-            'image_url' => $info['image_url'] ?? '',
-            'base_price' => $basePrice,
-            'current_price' => $currentPrice,
-            'reduction_percent' => 0.0,
-            'final_price' => $finalPrice,
-        ];
+        return $this->decorateLine($row, (int) $tarif->id_customer);
     }
 
-    public function updateLineReduction(int $idTarif, int $idLine, float $reductionPercent): array
+    /**
+     * Met à jour une ligne par saisie de la réduction (%) ou du prix final.
+     *
+     * @param string $mode 'reduction' ou 'price'
+     */
+    public function updateLine(int $idTarif, int $idLine, string $mode, float $value): array
     {
         $line = Db::getInstance()->getRow('
             SELECT * FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
@@ -485,7 +633,15 @@ class TarifService
             throw new RuntimeException($this->module->l('Ligne introuvable.'));
         }
 
-        $finalPrice = $this->computeFinalPrice((float) $line['current_price'], $reductionPercent);
+        $catalog = (float) $line['base_price'];
+
+        if ($mode === 'price') {
+            $finalPrice = round($value, 2);
+            $reductionPercent = $this->computeReductionFromFinal($catalog, $finalPrice);
+        } else {
+            $reductionPercent = round($value, 4);
+            $finalPrice = $this->computeFinalFromReduction($catalog, $reductionPercent);
+        }
 
         Db::getInstance()->update('customcatalogonpdf_tarif_line', [
             'reduction_percent' => $reductionPercent,
@@ -613,17 +769,19 @@ class TarifService
             WHERE id_tarif = ' . (int) $idTarif) ?: [];
 
         foreach ($lines as $line) {
-            $basePrice = $this->getBasePrice((int) $line['id_product'], (int) $line['id_product_attribute']);
-            $currentPrice = $this->getCurrentPrice(
+            $prices = $this->computeLinePrices(
                 (int) $line['id_product'],
                 (int) $line['id_product_attribute'],
                 (int) $tarif->id_customer
             );
-            $finalPrice = $this->computeFinalPrice($currentPrice, (float) $line['reduction_percent']);
+            // On conserve la réduction client saisie et on recalcule le prix final
+            $reductionPercent = (float) $line['reduction_percent'];
+            $finalPrice = $this->computeFinalFromReduction($prices['catalog'], $reductionPercent);
 
             Db::getInstance()->update('customcatalogonpdf_tarif_line', [
-                'base_price' => $basePrice,
-                'current_price' => $currentPrice,
+                'base_price' => $prices['catalog'],
+                'group_reduction_percent' => $prices['group_reduction'],
+                'current_price' => $prices['current'],
                 'final_price' => $finalPrice,
             ], 'id_line = ' . (int) $line['id_line']);
         }
@@ -631,9 +789,119 @@ class TarifService
         $this->touch($tarif);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Duplication
-    // ─────────────────────────────────────────────────────────────────────────
+    /**
+     * Synchronise les lignes dont le prix catalogue ou la remise de groupe ont
+     * changé, en CONSERVANT le prix final : la réduction client est recalculée
+     * et, si le tarif est validé, le prix spécifique propre au client est adapté
+     * pour que le client paie toujours le même prix final.
+     *
+     * @return int Nombre de lignes mises à jour
+     */
+    public function syncPrices(int $idTarif): int
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+
+        $idCustomer = (int) $tarif->id_customer;
+        $adaptSpecificPrices = $tarif->isValidated() && $idCustomer > 0;
+
+        $lines = Db::getInstance()->executeS('
+            SELECT *
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_tarif = ' . (int) $idTarif) ?: [];
+
+        $updated = 0;
+        foreach ($lines as $line) {
+            $idProduct = (int) $line['id_product'];
+            $idProductAttribute = (int) $line['id_product_attribute'];
+            $prices = $this->computeLinePrices($idProduct, $idProductAttribute, $idCustomer);
+
+            $changed = abs($prices['catalog'] - (float) $line['base_price']) >= 0.005
+                || abs($prices['group_reduction'] - (float) $line['group_reduction_percent']) >= 0.005;
+            if (!$changed) {
+                continue;
+            }
+
+            $finalPrice = (float) $line['final_price'];
+            $newCatalog = $prices['catalog'];
+            // On conserve le prix final : la réduction client est recalculée
+            $reductionPercent = $this->computeReductionFromFinal($newCatalog, $finalPrice);
+
+            Db::getInstance()->update('customcatalogonpdf_tarif_line', [
+                'base_price' => $newCatalog,
+                'group_reduction_percent' => $prices['group_reduction'],
+                'current_price' => $prices['current'],
+                'reduction_percent' => $reductionPercent,
+            ], 'id_line = ' . (int) $line['id_line']);
+
+            // Adapter le prix spécifique client existant pour préserver le prix final
+            if ($adaptSpecificPrices && $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer)) {
+                $this->applyCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer, $newCatalog, $finalPrice);
+            }
+
+            $updated++;
+        }
+
+        if ($updated > 0) {
+            if (method_exists('SpecificPrice', 'flushCache')) {
+                SpecificPrice::flushCache();
+            }
+            Product::flushPriceCache();
+        }
+
+        $this->touch($tarif);
+
+        return $updated;
+    }
+
+    /**
+     * Écrase le prix spécifique propre au client pour atteindre le prix final
+     * voulu (pourcentage par rapport au prix catalogue, arrondi à 2 décimales).
+     * Les remises de groupe ne sont jamais touchées.
+     */
+    private function applyCustomerSpecificPrice(
+        int $idProduct,
+        int $idProductAttribute,
+        int $idCustomer,
+        float $catalogPrice,
+        float $finalPrice
+    ): void {
+        Db::getInstance()->delete('specific_price',
+            'id_product = ' . $idProduct
+            . ' AND id_product_attribute = ' . $idProductAttribute
+            . ' AND id_customer = ' . $idCustomer
+            . ' AND id_group = 0'
+            . ' AND id_specific_price_rule = 0'
+        );
+
+        if ($catalogPrice <= 0) {
+            return;
+        }
+
+        $reductionPercent = round((($catalogPrice - $finalPrice) / $catalogPrice) * 100, 2);
+
+        Db::getInstance()->insert('specific_price', [
+            'id_specific_price_rule' => 0,
+            'id_cart' => 0,
+            'id_product' => $idProduct,
+            'id_shop' => 0,
+            'id_shop_group' => 0,
+            'id_currency' => 0,
+            'id_country' => 0,
+            'id_group' => 0,
+            'id_customer' => $idCustomer,
+            'id_product_attribute' => $idProductAttribute,
+            'price' => -1,
+            'from_quantity' => 1,
+            'reduction' => $reductionPercent / 100,
+            'reduction_tax' => 0,
+            'reduction_type' => 'percentage',
+            'from' => '0000-00-00 00:00:00',
+            'to' => '0000-00-00 00:00:00',
+        ]);
+    }
 
     public function duplicate(int $idTarif, int $idCustomer): int
     {
@@ -681,8 +949,7 @@ class TarifService
             $idProduct = (int) $line['id_product'];
             $idProductAttribute = (int) $line['id_product_attribute'];
             $reduction = (float) $line['reduction_percent'];
-            $basePrice = $this->getBasePrice($idProduct, $idProductAttribute);
-            $currentPrice = $this->getCurrentPrice($idProduct, $idProductAttribute, $idCustomer);
+            $prices = $this->computeLinePrices($idProduct, $idProductAttribute, $idCustomer);
 
             Db::getInstance()->insert('customcatalogonpdf_tarif_line', [
                 'id_tarif' => $newIdTarif,
@@ -690,10 +957,11 @@ class TarifService
                 'id_product' => $idProduct,
                 'id_product_attribute' => $idProductAttribute,
                 'position' => (int) $line['position'],
-                'base_price' => $basePrice,
-                'current_price' => $currentPrice,
+                'base_price' => $prices['catalog'],
+                'group_reduction_percent' => $prices['group_reduction'],
+                'current_price' => $prices['current'],
                 'reduction_percent' => $reduction,
-                'final_price' => $this->computeFinalPrice($currentPrice, $reduction),
+                'final_price' => $this->computeFinalFromReduction($prices['catalog'], $reduction),
             ]);
         }
 
@@ -705,11 +973,14 @@ class TarifService
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Verrouille les prix du tarif sous forme de prix spécifiques PrestaShop.
+     * Verrouille les prix du tarif sous forme de prix spécifiques client.
      *
      * Pour chaque ligne, calcule le pourcentage de réduction (par rapport au
      * prix de base catalogue) permettant d'atteindre le prix final, arrondi à
-     * 2 décimales, puis écrase toute règle existante du client sur ce produit.
+     * 2 décimales, puis écrase toute règle propre au client sur ce produit.
+     * Les remises de groupe ne sont jamais modifiées ; si le prix final
+     * correspond au prix de groupe du client, aucune règle client n'est créée
+     * (le client conserve simplement sa remise de groupe).
      *
      * @return int Nombre de prix spécifiques créés
      */
@@ -724,6 +995,8 @@ class TarifService
             throw new RuntimeException($this->module->l('Sélectionnez un client avant de valider le tarif.'));
         }
 
+        $idGroup = $this->getCustomerDefaultGroup($idCustomer);
+
         $lines = Db::getInstance()->executeS('
             SELECT id_product, id_product_attribute, final_price
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
@@ -735,12 +1008,14 @@ class TarifService
             $idProductAttribute = (int) $line['id_product_attribute'];
             $finalPrice = (float) $line['final_price'];
             $basePrice = $this->getBasePrice($idProduct, $idProductAttribute);
+            $groupPrice = $this->getGroupPrice($idProduct, $idProductAttribute, $idGroup);
 
-            // Écraser toute règle existante du client sur ce produit / déclinaison
+            // Écraser toute règle propre au client (jamais les remises de groupe)
             Db::getInstance()->delete('specific_price',
                 'id_product = ' . $idProduct
                 . ' AND id_product_attribute = ' . $idProductAttribute
                 . ' AND id_customer = ' . $idCustomer
+                . ' AND id_group = 0'
                 . ' AND id_specific_price_rule = 0'
             );
 
@@ -748,12 +1023,13 @@ class TarifService
                 continue;
             }
 
-            // Pourcentage de réduction par rapport au prix de base (arrondi 2 décimales)
-            $reductionPercent = round((($basePrice - $finalPrice) / $basePrice) * 100, 2);
-            if (abs($reductionPercent) < 0.005) {
-                // Aucun écart significatif : le client paie le prix de base
+            // Pas de dérogation : le prix final correspond au prix de groupe
+            if (abs($finalPrice - $groupPrice) < 0.005) {
                 continue;
             }
+
+            // Pourcentage de réduction par rapport au prix de base (arrondi 2 décimales)
+            $reductionPercent = round((($basePrice - $finalPrice) / $basePrice) * 100, 2);
 
             Db::getInstance()->insert('specific_price', [
                 'id_specific_price_rule' => 0,

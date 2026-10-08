@@ -21,54 +21,66 @@
 
     {* ── Barre d'actions ─────────────────────────────────────────────── *}
     <div class="row tarif-toolbar">
-      <div class="col-lg-6">
+      <div class="col-lg-5 col-md-6">
         <label>{l s='Ajouter un produit' mod='customcatalogonpdf'}</label>
-        <div class="input-group">
-          <input type="hidden"
-                 id="tarif-product-search"
-                 class="form-control"
-                 data-search-url="{$product_search_url|escape:'htmlall':'UTF-8'}">
-          <span class="input-group-btn">
-            <select id="tarif-target-section" class="form-control">
-              <option value="0">{l s='— Sans section —' mod='customcatalogonpdf'}</option>
-              {foreach from=$sections item=section}
-                {if $section.id_section > 0}
-                  <option value="{$section.id_section|intval}">{$section.title|escape:'htmlall':'UTF-8'}</option>
-                {/if}
-              {/foreach}
-            </select>
-          </span>
-          <span class="input-group-btn">
-            <button type="button" class="btn btn-primary" id="tarif-add-line">
-              <i class="icon-plus"></i> {l s='Ajouter' mod='customcatalogonpdf'}
-            </button>
-          </span>
+        <input type="hidden"
+               id="tarif-product-search"
+               class="form-control"
+               data-search-url="{$product_search_url|escape:'htmlall':'UTF-8'}">
+      </div>
+      <div class="col-lg-3 col-md-6">
+        <label>{l s='Dans la section' mod='customcatalogonpdf'}</label>
+        <div class="tarif-add-group">
+          <select id="tarif-target-section" class="form-control">
+            <option value="0">{l s='— Sans section —' mod='customcatalogonpdf'}</option>
+            {foreach from=$sections item=section}
+              {if $section.id_section > 0}
+                <option value="{$section.id_section|intval}">{$section.title|escape:'htmlall':'UTF-8'}</option>
+              {/if}
+            {/foreach}
+          </select>
+          <button type="button" class="btn btn-primary" id="tarif-add-line">
+            <i class="icon-plus"></i> {l s='Ajouter' mod='customcatalogonpdf'}
+          </button>
         </div>
       </div>
-      <div class="col-lg-6 text-right tarif-toolbar-buttons">
-        <button type="button" class="btn btn-default" id="tarif-add-section">
-          <i class="icon-folder-open"></i> {l s='Nouvelle section' mod='customcatalogonpdf'}
-        </button>
-        <button type="button" class="btn btn-default" id="tarif-refresh-prices">
-          <i class="icon-refresh"></i> {l s='Rafraîchir les prix' mod='customcatalogonpdf'}
-        </button>
-        <a class="btn btn-default" href="{$pdf_url|escape:'htmlall':'UTF-8'}">
-          <i class="icon-file-pdf-o"></i> {l s='PDF' mod='customcatalogonpdf'}
-        </a>
-        <a class="btn btn-default" href="{$xlsx_url|escape:'htmlall':'UTF-8'}">
-          <i class="icon-file-excel-o"></i> {l s='Excel' mod='customcatalogonpdf'}
-        </a>
-        <a class="btn btn-default" href="{$csv_url|escape:'htmlall':'UTF-8'}">
-          <i class="icon-file-text-o"></i> {l s='CSV' mod='customcatalogonpdf'}
-        </a>
-        <a class="btn btn-success" href="{$validate_url|escape:'htmlall':'UTF-8'}"
-           onclick="return confirm('{l s='Valider ce tarif et verrouiller les prix spécifiques du client ?' mod='customcatalogonpdf' js=1}');">
-          <i class="icon-lock"></i> {l s='Valider' mod='customcatalogonpdf'}
-        </a>
+      <div class="col-lg-4 col-md-12 text-right tarif-toolbar-buttons">
+        <label class="hidden-md hidden-sm hidden-xs">&nbsp;</label>
+        <div>
+          <button type="button" class="btn btn-default" id="tarif-add-section">
+            <i class="icon-folder-open"></i> {l s='Section' mod='customcatalogonpdf'}
+          </button>
+          <button type="button" class="btn btn-default" id="tarif-refresh-prices">
+            <i class="icon-refresh"></i> {l s='Prix' mod='customcatalogonpdf'}
+          </button>
+          <a class="btn btn-default" href="{$pdf_url|escape:'htmlall':'UTF-8'}">
+            <i class="icon-file-pdf-o"></i> PDF
+          </a>
+          <a class="btn btn-default" href="{$xlsx_url|escape:'htmlall':'UTF-8'}">
+            <i class="icon-file-excel-o"></i> Excel
+          </a>
+          <a class="btn btn-default" href="{$csv_url|escape:'htmlall':'UTF-8'}">
+            <i class="icon-file-text-o"></i> CSV
+          </a>
+          <a class="btn btn-success" id="tarif-validate" href="{$validate_url|escape:'htmlall':'UTF-8'}">
+            <i class="icon-lock"></i> {l s='Valider' mod='customcatalogonpdf'}
+          </a>
+        </div>
       </div>
     </div>
 
     <hr>
+
+    {* ── Alerte : prix catalogue / remise groupe modifiés ────────────── *}
+    {if $has_changes}
+      <div class="alert alert-warning tarif-changes-alert">
+        <i class="icon-warning"></i>
+        {l s='Le prix catalogue ou la remise de groupe de certains produits ont changé depuis la dernière mise à jour de ce tarif.' mod='customcatalogonpdf'}
+        <button type="button" class="btn btn-warning btn-sm" id="tarif-sync-prices">
+          <i class="icon-refresh"></i> {l s='Mettre à jour en conservant les prix finaux' mod='customcatalogonpdf'}
+        </button>
+      </div>
+    {/if}
 
     {* ── Sections et lignes ──────────────────────────────────────────── *}
     <div id="tarif-sections">
@@ -77,7 +89,7 @@
              data-id-section="{$section.id_section|intval}">
           <div class="tarif-section-header">
             {if $section.id_section > 0}
-              <span class="tarif-drag-section"><i class="icon-arrows"></i></span>
+              <span class="tarif-drag-section" title="{l s='Déplacer la section' mod='customcatalogonpdf'}"><i class="icon-arrows"></i></span>
               <input type="text"
                      class="form-control tarif-section-title"
                      value="{$section.title|escape:'htmlall':'UTF-8'}"
@@ -91,53 +103,61 @@
             {/if}
           </div>
 
-          <table class="table tarif-lines-table">
-            <thead>
-              <tr>
-                <th class="tarif-col-drag"></th>
-                <th class="tarif-col-img">{l s='Image' mod='customcatalogonpdf'}</th>
-                <th>{l s='Produit' mod='customcatalogonpdf'}</th>
-                <th class="tarif-col-price">{l s='Prix actuel HT' mod='customcatalogonpdf'}</th>
-                <th class="tarif-col-reduction">{l s='Réduction %' mod='customcatalogonpdf'}</th>
-                <th class="tarif-col-price">{l s='Prix final HT' mod='customcatalogonpdf'}</th>
-                <th class="tarif-col-actions"></th>
-              </tr>
-            </thead>
-            <tbody class="tarif-lines" data-id-section="{$section.id_section|intval}">
-              {foreach from=$section.lines item=line}
-                <tr class="tarif-line" data-id-line="{$line.id_line|intval}">
-                  <td class="tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></td>
-                  <td class="tarif-col-img">
-                    {if $line.image_url}
-                      <img src="{$line.image_url|escape:'htmlall':'UTF-8'}" alt="" class="tarif-thumb">
-                    {else}
-                      <span class="tarif-thumb-empty"></span>
-                    {/if}
-                  </td>
-                  <td>
-                    <strong>{$line.name|escape:'htmlall':'UTF-8'}</strong>
-                    {if $line.attribute_names}<div class="tarif-attrs">{$line.attribute_names|escape:'htmlall':'UTF-8'}</div>{/if}
-                    <div class="tarif-meta">
-                      {if $line.reference}{l s='Réf' mod='customcatalogonpdf'} : {$line.reference|escape:'htmlall':'UTF-8'}{/if}
-                      {if $line.ean13} &middot; EAN : {$line.ean13|escape:'htmlall':'UTF-8'}{/if}
-                    </div>
-                  </td>
-                  <td class="tarif-col-price tarif-current">{$line.current_price|string_format:"%.2f"} &euro;</td>
-                  <td class="tarif-col-reduction">
-                    <input type="text" class="form-control tarif-reduction"
-                           value="{$line.reduction_percent|string_format:"%.2f"}">
-                  </td>
-                  <td class="tarif-col-price tarif-final"><strong>{$line.final_price|string_format:"%.2f"} &euro;</strong></td>
-                  <td class="tarif-col-actions">
-                    <button type="button" class="btn btn-xs btn-danger tarif-delete-line"
-                            title="{l s='Retirer' mod='customcatalogonpdf'}">
-                      <i class="icon-trash"></i>
-                    </button>
-                  </td>
-                </tr>
-              {/foreach}
-            </tbody>
-          </table>
+          <div class="tarif-lines-head">
+            <span class="tarif-cell tarif-col-drag"></span>
+            <span class="tarif-cell tarif-col-img">{l s='Image' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-info">{l s='Produit' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Prix catalogue' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Remise groupe' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Réduction client %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Prix final HT' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-actions"></span>
+          </div>
+
+          <div class="tarif-lines" data-id-section="{$section.id_section|intval}">
+            {foreach from=$section.lines item=line}
+              <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-base-price="{$line.base_price|string_format:"%.6f"}">
+                <span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
+                <span class="tarif-cell tarif-col-img">
+                  {if $line.image_url}
+                    <img src="{$line.image_url|escape:'htmlall':'UTF-8'}" alt="" class="tarif-thumb">
+                  {else}
+                    <span class="tarif-thumb-empty"></span>
+                  {/if}
+                </span>
+                <span class="tarif-cell tarif-col-info">
+                  <strong>{$line.name|escape:'htmlall':'UTF-8'}</strong>
+                  {if $line.attribute_names}<span class="tarif-attrs">{$line.attribute_names|escape:'htmlall':'UTF-8'}</span>{/if}
+                  <span class="tarif-meta">
+                    {if $line.reference}{l s='Réf' mod='customcatalogonpdf'} : {$line.reference|escape:'htmlall':'UTF-8'}{/if}
+                    {if $line.ean13} &middot; EAN : {$line.ean13|escape:'htmlall':'UTF-8'}{/if}
+                  </span>
+                  <span class="tarif-badges">
+                    {if $line.has_group_rule}<span class="tarif-badge tarif-badge-group">{l s='Remise groupe' mod='customcatalogonpdf'}</span>{/if}
+                    {if $line.has_customer_rule}<span class="tarif-badge tarif-badge-customer">{l s='Remise client' mod='customcatalogonpdf'}</span>{/if}
+                    {if $line.has_changes}<span class="tarif-badge tarif-badge-changed" title="{l s='Catalogue' mod='customcatalogonpdf'} : {$line.base_price|string_format:"%.2f"} &rarr; {$line.live_base_price|string_format:"%.2f"} &euro; | {l s='Remise groupe' mod='customcatalogonpdf'} : {$line.group_reduction_percent|string_format:"%.2f"} &rarr; {$line.live_group_reduction_percent|string_format:"%.2f"} %">{l s='Prix modifiés' mod='customcatalogonpdf'}</span>{/if}
+                  </span>
+                </span>
+                <span class="tarif-cell tarif-col-num tarif-catalog">{$line.base_price|string_format:"%.2f"} &euro;</span>
+                <span class="tarif-cell tarif-col-num tarif-group">{$line.group_reduction_percent|string_format:"%.2f"} %</span>
+                <span class="tarif-cell tarif-col-num">
+                  <input type="text" class="form-control tarif-reduction" value="{$line.reduction_percent|string_format:"%.2f"}">
+                </span>
+                <span class="tarif-cell tarif-col-num">
+                  <div class="input-group tarif-final-group">
+                    <input type="text" class="form-control tarif-final" value="{$line.final_price|string_format:"%.2f"}">
+                    <span class="input-group-addon">&euro;</span>
+                  </div>
+                </span>
+                <span class="tarif-cell tarif-col-actions">
+                  <button type="button" class="btn btn-xs btn-danger tarif-delete-line"
+                          title="{l s='Retirer' mod='customcatalogonpdf'}">
+                    <i class="icon-trash"></i>
+                  </button>
+                </span>
+              </div>
+            {/foreach}
+          </div>
         </div>
       {/foreach}
     </div>
