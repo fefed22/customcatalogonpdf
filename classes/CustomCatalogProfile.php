@@ -32,6 +32,9 @@ class CustomCatalogProfile extends ObjectModel
     /** @var bool Tenir compte des remises groupe / client */
     public $use_discounts;
 
+    /** @var bool Classer les produits dans leur catégorie associée la plus basse */
+    public $use_deepest_category = true;
+
     /** @var string */
     public $date_add;
 
@@ -49,6 +52,7 @@ class CustomCatalogProfile extends ObjectModel
             'id_customer'      => ['type' => self::TYPE_INT],
             'show_prices'      => ['type' => self::TYPE_BOOL],
             'use_discounts'    => ['type' => self::TYPE_BOOL],
+            'use_deepest_category' => ['type' => self::TYPE_BOOL],
             'date_add'         => ['type' => self::TYPE_DATE],
             'date_upd'         => ['type' => self::TYPE_DATE],
         ],

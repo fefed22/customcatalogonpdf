@@ -156,9 +156,23 @@ class CatalogPdfGenerator
     private function getProducts(CustomCatalogProfile $profile, int $id_lang): array
     {
         $manufacturer_ids = $profile->getManufacturerIds();
+        $id_shop = (int) $this->context->shop->id;
         $where_manufacturer = '';
         if (!empty($manufacturer_ids)) {
             $where_manufacturer = ' AND p.id_manufacturer IN (' . implode(',', array_map('intval', $manufacturer_ids)) . ')';
+        }
+
+        $category_id_sql = 'p.id_category_default';
+        if ($profile->use_deepest_category) {
+            $category_id_sql = 'COALESCE((
+                SELECT cp_deep.id_category
+                FROM `' . _DB_PREFIX_ . 'category_product` cp_deep
+                INNER JOIN `' . _DB_PREFIX_ . 'category` c_deep
+                    ON c_deep.id_category = cp_deep.id_category
+                WHERE cp_deep.id_product = p.id_product
+                ORDER BY c_deep.level_depth DESC, c_deep.nleft ASC, c_deep.id_category ASC
+                LIMIT 1
+            ), p.id_category_default)';
         }
 
         $query = '
@@ -173,8 +187,8 @@ class CatalogPdfGenerator
                 ) AS attribute_names,
                 COALESCE(NULLIF(pa.reference, ""), p.reference)                 AS product_reference,
                 p.reference                                                     AS product_reference_base,
-                cl.name                                                         AS default_category_name,
-                p.id_category_default,
+                cl.name                                                         AS category_name,
+                ' . $category_id_sql . '                                        AS id_category,
                 ml.name                                                         AS manufacturer_name,
                 p.id_manufacturer,
                 img.id_image
@@ -184,9 +198,11 @@ class CatalogPdfGenerator
             LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` pa
                 ON p.id_product = pa.id_product
             LEFT JOIN `' . _DB_PREFIX_ . 'category_lang` cl
-                ON p.id_category_default = cl.id_category AND cl.id_lang = ' . $id_lang . '
+                ON ' . $category_id_sql . ' = cl.id_category
+                AND cl.id_lang = ' . $id_lang . '
+                AND cl.id_shop = ' . $id_shop . '
             LEFT JOIN `' . _DB_PREFIX_ . 'category` cdef
-                ON p.id_category_default = cdef.id_category
+                ON ' . $category_id_sql . ' = cdef.id_category
             LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute_combination` pac
                 ON pa.id_product_attribute = pac.id_product_attribute
             LEFT JOIN `' . _DB_PREFIX_ . 'attribute` a
@@ -331,8 +347,8 @@ class CatalogPdfGenerator
         $categories = [];
 
         foreach ($rows as $row) {
-            $cat_name  = $row['default_category_name'] ?: '—';
-            $cat_id    = (int) $row['id_category_default'];
+            $cat_name  = $row['category_name'] ?: '—';
+            $cat_id    = (int) $row['id_category'];
             $id_prod   = (int) $row['id_product'];
             $id_attr   = (int) $row['id_product_attribute'];
 

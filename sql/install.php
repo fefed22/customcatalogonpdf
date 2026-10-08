@@ -13,6 +13,7 @@ return [
         `id_customer`     INT(10) UNSIGNED NOT NULL DEFAULT 0,
         `show_prices`     TINYINT(1)       NOT NULL DEFAULT 0,
         `use_discounts`   TINYINT(1)       NOT NULL DEFAULT 0,
+        `use_deepest_category` TINYINT(1)   NOT NULL DEFAULT 1,
         `date_add`        DATETIME         NOT NULL,
         `date_upd`        DATETIME         NOT NULL,
         PRIMARY KEY (`id_profile`)

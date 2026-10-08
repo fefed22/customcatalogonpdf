@@ -15,7 +15,7 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - priorité automatique du client sélectionné sur le groupe client ;
 - prise en charge des produits simples et des déclinaisons ;
 - affichage des références produit et déclinaison ;
-- regroupement des produits par catégorie par défaut ;
+- regroupement configurable des produits par catégorie la plus basse ou par catégorie par défaut ;
 - ajout de l'image de couverture de chaque produit ;
 - conversion et compression des images pour limiter le poids du PDF ;
 - page de couverture avec logo, titre, contexte tarifaire, client et date ;
@@ -62,6 +62,7 @@ Aucune dépendance Composer supplémentaire n'est nécessaire au niveau du modul
 L'installation crée la table `PREFIX_customcatalogonpdf_profile` et ajoute les entrées **Catalogue PDF** et **Export tarifs** au menu **Catalogue** du back-office.
 
 Lors d'une mise à jour depuis la version 1.0.0, le script `upgrade/upgrade-1.1.0.php` installe automatiquement le nouvel onglet **Export tarifs**.
+Le script `upgrade/upgrade-1.2.0.php` active par défaut le regroupement selon la catégorie associée la plus basse.
 
 ## Utilisation
 
@@ -74,6 +75,7 @@ Dans **Catalogue > Catalogue PDF**, cliquer sur **Ajouter** puis renseigner :
 | Nom interne du profil | Nom utilisé dans le back-office et dans le nom du fichier téléchargé. |
 | Titre visible sur la couverture | Titre principal du catalogue. Le nom interne est utilisé si ce champ est vide. |
 | Filtrer par marques | Sélection multiple. Laisser vide pour inclure toutes les marques. |
+| Utiliser la catégorie la plus basse | Classe chaque produit dans sa catégorie associée la plus profonde. Cette option est activée par défaut. |
 | Afficher les prix | Active l'affichage des prix HT dans les fiches produits et déclinaisons. |
 | Tenir compte des remises groupe / client | Calcule les prix dans le contexte tarifaire sélectionné. |
 | Groupe client | Groupe utilisé pour le calcul lorsque aucun client précis n'est sélectionné. |
@@ -129,7 +131,7 @@ Le sommaire liste les catégories présentes et leur numéro de page. Il s'éten
 
 ### Catalogue produits
 
-Les produits sont regroupés selon leur catégorie par défaut et triés dans l'ordre de l'arbre des catégories. Chaque entrée peut contenir :
+Par défaut, les produits sont regroupés selon leur catégorie associée la plus basse et triés dans l'ordre de l'arbre des catégories. Le profil peut désactiver ce comportement pour utiliser leur catégorie par défaut. Chaque entrée peut contenir :
 
 - le nom du produit ;
 - son image de couverture ;
@@ -148,7 +150,7 @@ Le catalogue inclut actuellement :
 - toutes les marques lorsque le filtre est vide, ou uniquement les marques sélectionnées ;
 - toutes les déclinaisons rattachées aux produits retenus.
 
-La catégorie utilisée pour le regroupement est la catégorie par défaut du produit. L'image affichée est son image de couverture.
+La catégorie utilisée pour le regroupement est, par défaut, la catégorie associée la plus profonde dans l'arbre. En cas d'égalité de profondeur, la première dans l'ordre de l'arbre est retenue. Si aucune catégorie associée n'est disponible, ou si l'option est désactivée dans le profil, la catégorie par défaut du produit est utilisée. L'image affichée est son image de couverture.
 
 ## Gestion des images
 
@@ -182,6 +184,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`sql/install.php`](sql/install.php) | Création de la table des profils. |
 | [`sql/uninstall.php`](sql/uninstall.php) | Suppression de la table des profils. |
 | [`upgrade/upgrade-1.1.0.php`](upgrade/upgrade-1.1.0.php) | Installation du nouvel onglet lors d'une mise à jour. |
+| [`upgrade/upgrade-1.2.0.php`](upgrade/upgrade-1.2.0.php) | Ajout du réglage de catégorie la plus basse lors d'une mise à jour. |
 
 ## Désinstallation
 

@@ -141,6 +141,13 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
                     'hint' => $this->l('Laissez vide pour inclure toutes les marques.'),
                 ],
                 [
+                    'type'   => 'switch',
+                    'label'  => $this->l('Utiliser la catégorie la plus basse'),
+                    'name'   => 'use_deepest_category',
+                    'values' => $this->getSwitchValues(),
+                    'hint'   => $this->l('Classe chaque produit dans sa catégorie associée la plus basse dans l’arbre. En cas d’égalité, la première catégorie dans l’ordre de l’arbre est utilisée.'),
+                ],
+                [
                     'type'    => 'switch',
                     'label'   => $this->l('Afficher les prix'),
                     'name'    => 'show_prices',
@@ -193,6 +200,7 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
             $this->fields_value['id_manufacturers[]'] = $obj->getManufacturerIds();
         } else {
             $this->fields_value['id_manufacturers[]'] = [];
+            $this->fields_value['use_deepest_category'] = 1;
         }
 
         $html = parent::renderForm();
