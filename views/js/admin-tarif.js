@@ -135,14 +135,20 @@
       if (line.ean13) { meta.push('EAN : ' + escapeHtml(line.ean13)); }
 
       return '<div class="tarif-line" data-id-line="' + parseInt(line.id_line, 10)
-        + '" data-base-price="' + (parseFloat(line.base_price) || 0) + '">'
+        + '" data-base-price="' + (parseFloat(line.base_price) || 0) + '"'
+        + ' data-group-reduction="' + (parseFloat(line.group_reduction_percent) || 0) + '">'
         + '<span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>'
         + '<span class="tarif-cell tarif-col-img">' + img + '</span>'
         + '<span class="tarif-cell tarif-col-info"><strong>' + escapeHtml(line.name) + '</strong>' + attrs
         + '<span class="tarif-meta">' + meta.join(' &middot; ') + '</span>'
         + '<span class="tarif-badges">' + renderBadges(line) + '</span></span>'
         + '<span class="tarif-cell tarif-col-num tarif-catalog">' + fmt(line.base_price) + ' &euro;</span>'
-        + '<span class="tarif-cell tarif-col-num tarif-group">' + fmt(line.group_reduction_percent) + ' %</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-group"><span class="tarif-group-value">'
+        + fmt(line.group_reduction_percent) + ' %</span>'
+        + ((parseFloat(line.group_reduction_percent) || 0) > 0
+            ? '<button type="button" class="tarif-apply-group" title="Réappliquer la remise de groupe à la réduction client"><i class="icon-arrow-right"></i></button>'
+            : '')
+        + '</span>'
         + '<span class="tarif-cell tarif-col-num"><input type="text" class="form-control tarif-reduction" value="'
         + fmt(line.reduction_percent) + '"></span>'
         + '<span class="tarif-cell tarif-col-num"><div class="input-group tarif-final-group">'
@@ -294,6 +300,16 @@
         updateSourceBadge($row, resp.line.reduction_source);
       });
     }
+
+    // ── Réappliquer la remise de groupe à la réduction client ────────────────
+    $('#tarif-sections').on('click', '.tarif-apply-group', function () {
+      var $row = $(this).closest('.tarif-line');
+      var rg = parseFloat($row.attr('data-group-reduction')) || 0;
+      var base = getBase($row);
+      $row.find('.tarif-reduction').val(rg.toFixed(2));
+      $row.find('.tarif-final').val((base * (1 - rg / 100)).toFixed(2));
+      saveLine($row, 'reduction', rg);
+    });
 
     // ── Suppression de ligne ─────────────────────────────────────────────────
     $('#tarif-sections').on('click', '.tarif-delete-line', function () {

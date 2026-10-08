@@ -206,6 +206,22 @@
   color: #2f6fb0;
 }
 
+.customcatalog-tarif-editor .tarif-apply-group {
+  border: 1px solid #c7d6e6;
+  background: #eef4fb;
+  color: #2f6fb0;
+  border-radius: 3px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.customcatalog-tarif-editor .tarif-apply-group:hover {
+  background: #2f6fb0;
+  color: #fff;
+}
+
 .customcatalog-tarif-editor .tarif-col-num .form-control {
   text-align: right;
   padding: 4px 6px;

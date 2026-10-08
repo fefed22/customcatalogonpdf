@@ -4,7 +4,7 @@
  * Génère des catalogues produits en PDF avec profils configurables.
  *
  * @author  Créa2média
- * @version 1.3.4
+ * @version 1.3.5
  */
 
 if (!defined('_PS_VERSION_')) {
@@ -17,7 +17,7 @@ class CustomCatalogOnPdf extends Module
     {
         $this->name            = 'customcatalogonpdf';
         $this->tab             = 'administration';
-        $this->version         = '1.3.4';
+        $this->version         = '1.3.5';
         $this->author          = 'Créa2média';
         $this->need_instance   = 0;
         $this->bootstrap       = true;

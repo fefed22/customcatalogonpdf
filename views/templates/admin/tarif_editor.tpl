@@ -116,7 +116,7 @@
 
           <div class="tarif-lines" data-id-section="{$section.id_section|intval}">
             {foreach from=$section.lines item=line}
-              <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-base-price="{$line.base_price|string_format:"%.6f"}">
+              <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-base-price="{$line.base_price|string_format:"%.6f"}" data-group-reduction="{$line.group_reduction_percent|string_format:"%.4f"}">
                 <span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
                 <span class="tarif-cell tarif-col-img">
                   {if $line.image_url}
@@ -140,7 +140,10 @@
                   </span>
                 </span>
                 <span class="tarif-cell tarif-col-num tarif-catalog">{$line.base_price|string_format:"%.2f"} &euro;</span>
-                <span class="tarif-cell tarif-col-num tarif-group">{$line.group_reduction_percent|string_format:"%.2f"} %</span>
+                <span class="tarif-cell tarif-col-num tarif-group">
+                  <span class="tarif-group-value">{$line.group_reduction_percent|string_format:"%.2f"} %</span>
+                  {if $line.group_reduction_percent > 0}<button type="button" class="tarif-apply-group" title="{l s='Réappliquer la remise de groupe à la réduction client' mod='customcatalogonpdf'}"><i class="icon-arrow-right"></i></button>{/if}
+                </span>
                 <span class="tarif-cell tarif-col-num">
                   <input type="text" class="form-control tarif-reduction" value="{$line.reduction_percent|string_format:"%.2f"}">
                 </span>
