@@ -478,6 +478,38 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         }
     }
 
+    public function ajaxProcessApplySectionReduction(): void
+    {
+        try {
+            $idTarif = (int) Tools::getValue('id_tarif');
+            $idSection = (int) Tools::getValue('id_section');
+            $value = $this->parseFloat((string) Tools::getValue('value'));
+            $lines = $this->service->applySectionReduction($idTarif, $idSection, $value);
+            $this->ajaxRender(json_encode(['success' => true, 'lines' => $lines]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessAddByReferences(): void
+    {
+        try {
+            $idTarif = (int) Tools::getValue('id_tarif');
+            $idSection = (int) Tools::getValue('id_section');
+            $raw = (string) Tools::getValue('references');
+            $references = preg_split('/\r\n|\r|\n/', $raw) ?: [];
+            $result = $this->service->addLinesByReferences($idTarif, $references, $idSection);
+            $this->ajaxRender(json_encode([
+                'success' => true,
+                'lines' => $result['added'],
+                'not_found' => $result['not_found'],
+                'id_section' => $idSection,
+            ]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
     public function ajaxProcessDeleteLine(): void
     {
         try {

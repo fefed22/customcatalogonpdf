@@ -227,17 +227,19 @@
     initSortables();
 
     function refreshTargetSections() {
-      var $select = $('#tarif-target-section');
-      var current = $select.val();
-      $select.find('option').not('[value="0"]').remove();
-      $('#tarif-sections > .tarif-section').each(function () {
-        var id = parseInt($(this).data('id-section'), 10);
-        if (id > 0) {
-          var title = $(this).find('.tarif-section-title').val() || ('Section ' + id);
-          $select.append($('<option>').val(id).text(title));
-        }
+      $('#tarif-target-section, #tarif-references-section').each(function () {
+        var $select = $(this);
+        var current = $select.val();
+        $select.find('option').not('[value="0"]').remove();
+        $('#tarif-sections > .tarif-section').each(function () {
+          var id = parseInt($(this).data('id-section'), 10);
+          if (id > 0) {
+            var title = $(this).find('.tarif-section-title').val() || ('Section ' + id);
+            $select.append($('<option>').val(id).text(title));
+          }
+        });
+        $select.val(current);
       });
-      $select.val(current);
     }
 
     // ── Ajout de ligne ───────────────────────────────────────────────────────
@@ -295,10 +297,18 @@
     function saveLine($row, mode, value) {
       var idLine = parseInt($row.data('id-line'), 10);
       api('UpdateLine', { id_line: idLine, mode: mode, value: value }, function (resp) {
-        $row.find('.tarif-reduction').val(fmt(resp.line.reduction_percent));
-        $row.find('.tarif-final').val(fmt(resp.line.final_price));
-        updateSourceBadge($row, resp.line.reduction_source);
+        applyLineResult(resp.line);
       });
+    }
+
+    function applyLineResult(line) {
+      var $row = $('.tarif-line[data-id-line="' + parseInt(line.id_line, 10) + '"]');
+      if (!$row.length) {
+        return;
+      }
+      $row.find('.tarif-reduction').val(fmt(line.reduction_percent));
+      $row.find('.tarif-final').val(fmt(line.final_price));
+      updateSourceBadge($row, line.reduction_source);
     }
 
     // ── Réappliquer la remise de groupe à la réduction client ────────────────
@@ -309,6 +319,30 @@
       $row.find('.tarif-reduction').val(rg.toFixed(2));
       $row.find('.tarif-final').val((base * (1 - rg / 100)).toFixed(2));
       saveLine($row, 'reduction', rg);
+    });
+
+    // ── Réduction appliquée à toute une section ──────────────────────────────
+    $('#tarif-sections').on('click', '.tarif-apply-section-reduction', function () {
+      var $section = $(this).closest('.tarif-section');
+      var idSection = parseInt($section.data('id-section'), 10);
+      var $input = $section.find('.tarif-section-reduction-input');
+      var pct = parseNum($input.val());
+      var count = $section.find('.tarif-line').length;
+
+      if (!count) {
+        window.alert('Aucun produit dans cette section.');
+        return;
+      }
+      if (!window.confirm('Appliquer une réduction de ' + pct.toFixed(2) + ' % à ' + count + ' produit(s) de cette section ?\n\nLes réductions client existantes de ces lignes seront écrasées.')) {
+        return;
+      }
+
+      api('ApplySectionReduction', { id_section: idSection, value: pct }, function (resp) {
+        $.each(resp.lines || [], function (i, line) {
+          applyLineResult(line);
+        });
+        $input.val('');
+      });
     });
 
     // ── Suppression de ligne ─────────────────────────────────────────────────
@@ -326,6 +360,61 @@
         $('.tarif-section-none').before(renderSectionBlock(resp.section));
         refreshTargetSections();
         initSortables();
+      });
+    });
+
+    // ── Ajout en masse par références (modale) ───────────────────────────────
+    $('#tarif-add-references').on('click', function () {
+      $('#tarif-references-textarea').val('');
+      $('#tarif-references-result').hide().empty();
+      $('#tarif-references-modal').modal('show');
+    });
+
+    $('#tarif-references-submit').on('click', function () {
+      var $btn = $(this);
+      var idSection = parseInt($('#tarif-references-section').val(), 10) || 0;
+      var references = $('#tarif-references-textarea').val();
+
+      if (!$.trim(references)) {
+        window.alert('Saisissez au moins une référence.');
+        return;
+      }
+
+      $btn.prop('disabled', true);
+      $.post(ajaxUrl, {
+        ajax: 1,
+        action: 'AddByReferences',
+        id_tarif: idTarif,
+        id_section: idSection,
+        references: references
+      }, function (resp) {
+        if (resp && resp.success === false) {
+          window.alert(resp.error || 'Erreur');
+          return;
+        }
+        var $target = $('.tarif-lines[data-id-section="' + idSection + '"]');
+        var lines = resp.lines || [];
+        $.each(lines, function (i, line) {
+          $target.append(renderLineRow(line));
+        });
+        initSortables();
+
+        var msg = lines.length + ' ligne(s) ajoutée(s).';
+        var notFound = resp.not_found || [];
+        var $result = $('#tarif-references-result');
+        if (notFound.length) {
+          $result.removeClass('alert-success').addClass('alert-warning')
+            .html('<strong>' + msg + '</strong><br>Références introuvables (' + notFound.length + ') : '
+              + $('<div>').text(notFound.join(', ')).html()).show();
+        } else {
+          $result.removeClass('alert-warning').addClass('alert-success')
+            .html('<strong>' + msg + '</strong>').show();
+          $('#tarif-references-textarea').val('');
+        }
+      }, 'json').fail(function () {
+        window.alert('Erreur réseau.');
+      }).always(function () {
+        $btn.prop('disabled', false);
       });
     });
 

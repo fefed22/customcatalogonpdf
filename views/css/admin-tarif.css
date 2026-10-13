@@ -58,6 +58,19 @@
   max-width: 400px;
 }
 
+.customcatalog-tarif-editor .tarif-section-reduction {
+  width: 200px;
+  margin-left: auto;
+}
+
+.customcatalog-tarif-editor .tarif-section-reduction-input {
+  text-align: right;
+}
+
+.customcatalog-tarif-editor .tarif-section-none .tarif-section-reduction {
+  margin-left: auto;
+}
+
 .customcatalog-tarif-editor .tarif-section-none-label {
   font-weight: bold;
   color: #6b7a90;

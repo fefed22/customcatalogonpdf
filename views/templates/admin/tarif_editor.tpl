@@ -50,6 +50,9 @@
           <button type="button" class="btn btn-default" id="tarif-add-section">
             <i class="icon-folder-open"></i> {l s='Section' mod='customcatalogonpdf'}
           </button>
+          <button type="button" class="btn btn-default" id="tarif-add-references">
+            <i class="icon-list-ol"></i> {l s='Réf. en masse' mod='customcatalogonpdf'}
+          </button>
           <button type="button" class="btn btn-default" id="tarif-refresh-prices">
             <i class="icon-refresh"></i> {l s='Prix' mod='customcatalogonpdf'}
           </button>
@@ -94,12 +97,28 @@
                      class="form-control tarif-section-title"
                      value="{$section.title|escape:'htmlall':'UTF-8'}"
                      placeholder="{l s='Titre de la section' mod='customcatalogonpdf'}">
+              <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
+                <input type="text" class="form-control tarif-section-reduction-input" placeholder="%">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default tarif-apply-section-reduction">
+                    <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
+                  </button>
+                </span>
+              </div>
               <button type="button" class="btn btn-xs btn-danger tarif-delete-section"
                       title="{l s='Supprimer la section' mod='customcatalogonpdf'}">
                 <i class="icon-trash"></i>
               </button>
             {else}
               <span class="tarif-section-none-label">{l s='Sans section' mod='customcatalogonpdf'}</span>
+              <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
+                <input type="text" class="form-control tarif-section-reduction-input" placeholder="%">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default tarif-apply-section-reduction">
+                    <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
+                  </button>
+                </span>
+              </div>
             {/if}
           </div>
 
@@ -181,5 +200,43 @@
       </button>
     </form>
 
+  </div>
+</div>
+
+{* ── Modale : ajout en masse par références ────────────────────────── *}
+<div class="modal fade" id="tarif-references-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title">{l s='Ajout en masse par références' mod='customcatalogonpdf'}</h4>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="tarif-references-section">{l s='Section cible' mod='customcatalogonpdf'}</label>
+          <select id="tarif-references-section" class="form-control">
+            <option value="0">{l s='— Sans section —' mod='customcatalogonpdf'}</option>
+            {foreach from=$sections item=section}
+              {if $section.id_section > 0}
+                <option value="{$section.id_section|intval}">{$section.title|escape:'htmlall':'UTF-8'}</option>
+              {/if}
+            {/foreach}
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="tarif-references-textarea">{l s='Références (une par ligne)' mod='customcatalogonpdf'}</label>
+          <textarea id="tarif-references-textarea" class="form-control" rows="10"
+                    placeholder="{l s='REF001&#10;REF002&#10;REF003' mod='customcatalogonpdf'}"></textarea>
+          <p class="help-block">{l s='Une référence produit ou déclinaison par ligne. Les produits à déclinaisons ajoutent toutes leurs déclinaisons.' mod='customcatalogonpdf'}</p>
+        </div>
+        <div class="alert alert-warning tarif-references-result" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">{l s='Fermer' mod='customcatalogonpdf'}</button>
+        <button type="button" class="btn btn-primary" id="tarif-references-submit">
+          <i class="icon-plus"></i> {l s='Ajouter' mod='customcatalogonpdf'}
+        </button>
+      </div>
+    </div>
   </div>
 </div>

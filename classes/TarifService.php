@@ -679,8 +679,104 @@ class TarifService
     }
 
     /**
-     * Insère une ligne (produit ou déclinaison) et retourne sa représentation.
+     * Ajoute en masse des lignes à partir d'une liste de références produit ou
+     * déclinaison. Une référence correspondant à une déclinaison ajoute cette
+     * déclinaison ; une référence produit sans déclinaison ajoute le produit ;
+     * une référence produit avec déclinaisons ajoute toutes ses déclinaisons.
+     *
+     * @param string[] $references
+     *
+     * @return array{added: array, not_found: string[]}
      */
+    public function addLinesByReferences(int $idTarif, array $references, int $idSection): array
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+
+        $added = [];
+        $notFound = [];
+        $seen = [];
+
+        foreach ($references as $reference) {
+            $reference = trim($reference);
+            if ($reference === '') {
+                continue;
+            }
+            // Éviter les doublons dans la même soumission
+            if (isset($seen[Tools::strtolower($reference)])) {
+                continue;
+            }
+            $seen[Tools::strtolower($reference)] = true;
+
+            $targets = $this->resolveProductByReference($reference);
+            if (empty($targets)) {
+                $notFound[] = $reference;
+                continue;
+            }
+
+            foreach ($targets as $target) {
+                $added[] = $this->insertLine(
+                    $tarif,
+                    (int) $target['id_product'],
+                    (int) $target['id_product_attribute'],
+                    $idSection
+                );
+            }
+        }
+
+        return [
+            'added' => $added,
+            'not_found' => $notFound,
+        ];
+    }
+
+    /**
+     * Résout une référence en une liste de cibles [id_product, id_product_attribute].
+     *
+     * @return array<array{id_product:int,id_product_attribute:int}>
+     */
+    private function resolveProductByReference(string $reference): array
+    {
+        $escaped = pSQL($reference);
+
+        // 1) Référence de déclinaison
+        $combination = Db::getInstance()->getRow('
+            SELECT pa.id_product, pa.id_product_attribute
+            FROM `' . _DB_PREFIX_ . 'product_attribute` pa
+            WHERE pa.reference = "' . $escaped . '"');
+        if ($combination) {
+            return [[
+                'id_product' => (int) $combination['id_product'],
+                'id_product_attribute' => (int) $combination['id_product_attribute'],
+            ]];
+        }
+
+        // 2) Référence produit
+        $idProduct = (int) Db::getInstance()->getValue('
+            SELECT id_product
+            FROM `' . _DB_PREFIX_ . 'product`
+            WHERE reference = "' . $escaped . '"');
+        if ($idProduct <= 0) {
+            return [];
+        }
+
+        $combinations = $this->getCombinations($idProduct, (int) $this->context->language->id);
+        if (empty($combinations)) {
+            return [['id_product' => $idProduct, 'id_product_attribute' => 0]];
+        }
+
+        $targets = [];
+        foreach ($combinations as $combination) {
+            $targets[] = [
+                'id_product' => $idProduct,
+                'id_product_attribute' => (int) $combination['id_product_attribute'],
+            ];
+        }
+
+        return $targets;
+    }
     private function insertLine(
         CustomCatalogTarif $tarif,
         int $idProduct,
@@ -781,6 +877,68 @@ class TarifService
             'final_price' => $finalPrice,
             'reduction_source' => $reductionSource,
         ];
+    }
+
+    /**
+     * Applique une même réduction client (%) à toutes les lignes d'une section,
+     * en écrasant les valeurs existantes. Le prix final est recalculé par
+     * rapport au prix catalogue de chaque ligne.
+     *
+     * @return array Lignes mises à jour (id_line, reduction_percent, final_price, reduction_source)
+     */
+    public function applySectionReduction(int $idTarif, int $idSection, float $reductionPercent): array
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+
+        $idCustomer = (int) $tarif->id_customer;
+        $reductionPercent = round($reductionPercent, 4);
+
+        $lines = Db::getInstance()->executeS('
+            SELECT *
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_tarif = ' . (int) $idTarif . ' AND id_section = ' . (int) $idSection) ?: [];
+
+        $updated = [];
+        foreach ($lines as $line) {
+            $catalog = (float) $line['base_price'];
+            $finalPrice = $this->computeFinalFromReduction($catalog, $reductionPercent);
+
+            Db::getInstance()->update('customcatalogonpdf_tarif_line', [
+                'reduction_percent' => $reductionPercent,
+                'final_price' => $finalPrice,
+            ], 'id_line = ' . (int) $line['id_line']);
+
+            $hasCustomerRule = $this->hasCustomerSpecificPrice(
+                (int) $line['id_product'],
+                (int) $line['id_product_attribute'],
+                $idCustomer
+            );
+            $liveCurrent = $this->getCurrentPrice(
+                (int) $line['id_product'],
+                (int) $line['id_product_attribute'],
+                $idCustomer
+            );
+
+            $updated[] = [
+                'id_line' => (int) $line['id_line'],
+                'reduction_percent' => $reductionPercent,
+                'final_price' => $finalPrice,
+                'reduction_source' => $this->resolveReductionSource(
+                    $reductionPercent,
+                    (float) $line['group_reduction_percent'],
+                    $catalog,
+                    $liveCurrent,
+                    $hasCustomerRule
+                ),
+            ];
+        }
+
+        $this->touchById($idTarif);
+
+        return $updated;
     }
 
     public function deleteLine(int $idTarif, int $idLine): void
