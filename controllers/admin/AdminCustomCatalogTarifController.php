@@ -452,13 +452,20 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             $raw = (string) Tools::getValue('product');
 
             if (preg_match('/^(\d+):all$/', $raw, $m)) {
-                $lines = $this->service->addAllCombinations($idTarif, (int) $m[1], $idSection);
-            } else {
-                [$idProduct, $idProductAttribute] = $this->parseProductId($raw);
-                $lines = [$this->service->addLine($idTarif, $idProduct, $idProductAttribute, $idSection)];
+                $result = $this->service->addAllCombinations($idTarif, (int) $m[1], $idSection);
+                $this->ajaxRender(json_encode([
+                    'success' => true,
+                    'lines' => $result['added'],
+                    'skipped' => $result['skipped'],
+                ]));
+
+                return;
             }
 
-            $this->ajaxRender(json_encode(['success' => true, 'lines' => $lines]));
+            [$idProduct, $idProductAttribute] = $this->parseProductId($raw);
+            $line = $this->service->addLine($idTarif, $idProduct, $idProductAttribute, $idSection);
+
+            $this->ajaxRender(json_encode(['success' => true, 'lines' => [$line], 'skipped' => 0]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
         }
@@ -503,6 +510,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
                 'success' => true,
                 'lines' => $result['added'],
                 'not_found' => $result['not_found'],
+                'duplicates' => $result['duplicates'],
                 'id_section' => $idSection,
             ]));
         } catch (Throwable $e) {

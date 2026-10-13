@@ -259,6 +259,12 @@
         });
         $productSearch.select2('val', '');
         initSortables();
+
+        if (resp.skipped) {
+          window.alert(resp.skipped + ' déclinaison(s) déjà présente(s) dans le tarif, ignorée(s).');
+        } else if (!lines.length) {
+          window.alert('Ce produit est déjà présent dans le tarif.');
+        }
       });
     });
 
@@ -401,11 +407,20 @@
 
         var msg = lines.length + ' ligne(s) ajoutée(s).';
         var notFound = resp.not_found || [];
+        var duplicates = resp.duplicates || [];
         var $result = $('#tarif-references-result');
+        var details = '';
+        if (duplicates.length) {
+          details += '<br>Déjà présentes (' + duplicates.length + ') : '
+            + $('<div>').text(duplicates.join(', ')).html();
+        }
         if (notFound.length) {
+          details += '<br>Introuvables (' + notFound.length + ') : '
+            + $('<div>').text(notFound.join(', ')).html();
+        }
+        if (details) {
           $result.removeClass('alert-success').addClass('alert-warning')
-            .html('<strong>' + msg + '</strong><br>Références introuvables (' + notFound.length + ') : '
-              + $('<div>').text(notFound.join(', ')).html()).show();
+            .html('<strong>' + msg + '</strong>' + details).show();
         } else {
           $result.removeClass('alert-warning').addClass('alert-success')
             .html('<strong>' + msg + '</strong>').show();

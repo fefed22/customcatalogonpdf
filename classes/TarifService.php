@@ -644,13 +644,18 @@ class TarifService
             throw new RuntimeException($this->module->l('Tarif introuvable.'));
         }
 
+        if ($this->lineExists($idTarif, $idProduct, $idProductAttribute)) {
+            throw new RuntimeException($this->module->l('Ce produit est déjà présent dans le tarif.'));
+        }
+
         return $this->insertLine($tarif, $idProduct, $idProductAttribute, $idSection);
     }
 
     /**
      * Ajoute une ligne pour chaque déclinaison d'un produit déclinable.
+     * Les déclinaisons déjà présentes dans le tarif sont ignorées.
      *
-     * @return array Lignes décorées
+     * @return array{added: array, skipped: int}
      */
     public function addAllCombinations(int $idTarif, int $idProduct, int $idSection): array
     {
@@ -662,20 +667,25 @@ class TarifService
         $combinations = $this->getCombinations($idProduct, (int) $this->context->language->id);
         if (empty($combinations)) {
             // Produit sans déclinaison : on ajoute le produit global
-            return [$this->insertLine($tarif, $idProduct, 0, $idSection)];
+            if ($this->lineExists($idTarif, $idProduct, 0)) {
+                return ['added' => [], 'skipped' => 1];
+            }
+
+            return ['added' => [$this->insertLine($tarif, $idProduct, 0, $idSection)], 'skipped' => 0];
         }
 
-        $lines = [];
+        $added = [];
+        $skipped = 0;
         foreach ($combinations as $combination) {
-            $lines[] = $this->insertLine(
-                $tarif,
-                $idProduct,
-                (int) $combination['id_product_attribute'],
-                $idSection
-            );
+            $idProductAttribute = (int) $combination['id_product_attribute'];
+            if ($this->lineExists($idTarif, $idProduct, $idProductAttribute)) {
+                $skipped++;
+                continue;
+            }
+            $added[] = $this->insertLine($tarif, $idProduct, $idProductAttribute, $idSection);
         }
 
-        return $lines;
+        return ['added' => $added, 'skipped' => $skipped];
     }
 
     /**
@@ -697,6 +707,7 @@ class TarifService
 
         $added = [];
         $notFound = [];
+        $duplicates = [];
         $seen = [];
 
         foreach ($references as $reference) {
@@ -716,20 +727,41 @@ class TarifService
                 continue;
             }
 
+            $addedForRef = 0;
             foreach ($targets as $target) {
-                $added[] = $this->insertLine(
-                    $tarif,
-                    (int) $target['id_product'],
-                    (int) $target['id_product_attribute'],
-                    $idSection
-                );
+                $idProduct = (int) $target['id_product'];
+                $idProductAttribute = (int) $target['id_product_attribute'];
+                if ($this->lineExists($idTarif, $idProduct, $idProductAttribute)) {
+                    continue;
+                }
+                $added[] = $this->insertLine($tarif, $idProduct, $idProductAttribute, $idSection);
+                $addedForRef++;
+            }
+
+            // Toutes les cibles de cette référence étaient déjà présentes
+            if ($addedForRef === 0) {
+                $duplicates[] = $reference;
             }
         }
 
         return [
             'added' => $added,
             'not_found' => $notFound,
+            'duplicates' => $duplicates,
         ];
+    }
+
+    /**
+     * Indique si le couple produit / déclinaison est déjà présent dans le tarif.
+     */
+    private function lineExists(int $idTarif, int $idProduct, int $idProductAttribute): bool
+    {
+        return (bool) Db::getInstance()->getValue('
+            SELECT 1
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_tarif = ' . (int) $idTarif . '
+              AND id_product = ' . (int) $idProduct . '
+              AND id_product_attribute = ' . (int) $idProductAttribute);
     }
 
     /**
