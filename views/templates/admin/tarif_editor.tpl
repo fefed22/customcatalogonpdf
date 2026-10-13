@@ -229,7 +229,7 @@
                     placeholder="{l s='REF001&#10;REF002&#10;REF003' mod='customcatalogonpdf'}"></textarea>
           <p class="help-block">{l s='Une référence produit ou déclinaison par ligne. Les produits à déclinaisons ajoutent toutes leurs déclinaisons.' mod='customcatalogonpdf'}</p>
         </div>
-        <div class="alert alert-warning tarif-references-result" style="display:none;"></div>
+        <div id="tarif-references-result" class="alert alert-warning tarif-references-result" style="display:none;"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-default" data-dismiss="modal">{l s='Fermer' mod='customcatalogonpdf'}</button>
