@@ -226,6 +226,17 @@ class CatalogPdfGenerator
             return [];
         }
 
+        $newProducts = [];
+        foreach ($rows as &$row) {
+            $idProduct = (int) $row['id_product'];
+            if (!array_key_exists($idProduct, $newProducts)) {
+                $product = new Product($idProduct, false, $id_lang, $id_shop);
+                $newProducts[$idProduct] = (bool) $product->isNew();
+            }
+            $row['is_new'] = $newProducts[$idProduct];
+        }
+        unset($row);
+
         if ($profile->show_prices) {
             foreach ($rows as &$row) {
                 $row['product_price'] = $this->resolveProductPrice($row, $profile);
@@ -365,6 +376,7 @@ class CatalogPdfGenerator
                     'name'         => $row['product_name'],
                     'reference'    => $row['product_reference_base'],
                     'id_image'     => (int) $row['id_image'],
+                    'is_new'       => (bool) $row['is_new'],
                     'simple_price' => null,
                     'variants'     => [],
                 ];
@@ -694,10 +706,11 @@ class CatalogPdfGenerator
         $img_cell_w   = 22;
         $img_size     = 16;
         $text_w       = $col_w - $img_cell_w - 2;
+        $badge_h      = !empty($product['is_new']) ? 7 : 0;
 
         // Estimer la hauteur totale du bloc pour décider du saut de page
         $nb_variants = count($product['variants']);
-        $total_h     = $img_size + 4 + ($nb_variants * 9);
+        $total_h     = $img_size + 4 + ($nb_variants * 9) + $badge_h;
         if ($pdf->GetY() + $total_h > $pdf->getPageHeight() - $pdf->getBreakMargin()) {
             $pdf->AddPage();
         }
@@ -737,7 +750,16 @@ class CatalogPdfGenerator
         $price_col_w = $text_w * 0.35;
         $attr_col_w  = $text_w - $price_col_w;
 
-        $pdf->SetXY($x_text, $y_start + 2);
+        if ($badge_h > 0) {
+            $pdf->SetXY($x_text, $y_start + 1);
+            $pdf->SetFont('helvetica', 'B', 9);
+            $pdf->SetFillColor(195, 65, 10);
+            $pdf->SetTextColor(255, 255, 255);
+            $pdf->Cell(25, 6, 'NOUVEAU', 0, 0, 'C', true);
+            $pdf->SetFillColor(0, 0, 0);
+        }
+
+        $pdf->SetXY($x_text, $y_start + 2 + $badge_h);
         $pdf->SetFont('helvetica', 'B', 9.5);
         $pdf->SetTextColor(30, 30, 30);
         $pdf->MultiCell($text_w, 5, $product['name'], 0, 'L');
