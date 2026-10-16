@@ -8,6 +8,7 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 
 - création, modification et suppression de profils de catalogue ;
 - sélection d'une ou plusieurs marques, ou inclusion de toutes les marques ;
+- sélection facultative d'un tarif client comme source de la liste de produits et de déclinaisons, cumulable avec le filtre de marques ;
 - génération avec ou sans prix ;
 - affichage des prix catalogue HT ;
 - prise en compte des tarifs et remises d'un groupe client ;
@@ -250,6 +251,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`upgrade/upgrade-1.2.0.php`](upgrade/upgrade-1.2.0.php) | Ajout du réglage de catégorie la plus basse lors d'une mise à jour. |
 | [`upgrade/upgrade-1.3.0.php`](upgrade/upgrade-1.3.0.php) | Création des tables de tarifs clients et de l'onglet dédié. |
 | [`upgrade/upgrade-1.3.1.php`](upgrade/upgrade-1.3.1.php) | Ajout de la colonne de remise de groupe aux lignes de tarif. |
+| [`upgrade/upgrade-1.4.0.php`](upgrade/upgrade-1.4.0.php) | Ajout du tarif source optionnel aux profils de catalogue. |
 
 ## Désinstallation
 

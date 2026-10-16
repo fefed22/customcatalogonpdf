@@ -9,6 +9,7 @@ return [
         `name`            VARCHAR(255)     NOT NULL,
         `title`           VARCHAR(255)     NOT NULL DEFAULT \'\',
         `id_manufacturers` TEXT,
+        `id_tarif`        INT(10) UNSIGNED NOT NULL DEFAULT 0,
         `id_group`        INT(10) UNSIGNED NOT NULL DEFAULT 0,
         `id_customer`     INT(10) UNSIGNED NOT NULL DEFAULT 0,
         `show_prices`     TINYINT(1)       NOT NULL DEFAULT 0,

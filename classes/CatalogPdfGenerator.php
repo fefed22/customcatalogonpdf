@@ -161,6 +161,16 @@ class CatalogPdfGenerator
         if (!empty($manufacturer_ids)) {
             $where_manufacturer = ' AND p.id_manufacturer IN (' . implode(',', array_map('intval', $manufacturer_ids)) . ')';
         }
+        $where_tarif = '';
+        if ((int) $profile->id_tarif > 0) {
+            $where_tarif = ' AND EXISTS (
+                SELECT 1
+                FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line` tl
+                WHERE tl.id_tarif = ' . (int) $profile->id_tarif . '
+                  AND tl.id_product = p.id_product
+                  AND tl.id_product_attribute = COALESCE(pa.id_product_attribute, 0)
+            )';
+        }
 
         $category_id_sql = 'p.id_category_default';
         if ($profile->use_deepest_category) {
@@ -218,6 +228,7 @@ class CatalogPdfGenerator
             WHERE p.active = 1
               AND p.is_virtual = 0
             ' . $where_manufacturer . '
+            ' . $where_tarif . '
             GROUP BY p.id_product, pa.id_product_attribute
             ORDER BY cdef.nleft ASC, p.id_product ASC, pa.id_product_attribute ASC';
 

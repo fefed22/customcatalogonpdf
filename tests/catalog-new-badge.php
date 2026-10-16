@@ -20,6 +20,7 @@ class CustomCatalogProfile
 {
     public bool $show_prices = false;
     public bool $use_deepest_category = false;
+    public int $id_tarif = 0;
 
     public function getManufacturerIds(): array
     {
@@ -46,6 +47,8 @@ class Product
 
 class Db
 {
+    public static string $lastQuery = '';
+
     public static function getInstance(): self
     {
         return new self();
@@ -53,6 +56,7 @@ class Db
 
     public function executeS(string $query): array
     {
+        self::$lastQuery = $query;
         $rows = [];
         foreach ([[1, 11], [1, 12], [2, 0]] as [$id, $attribute]) {
             $rows[] = [
@@ -110,8 +114,14 @@ function check(bool $condition, string $message): void
 $generator = new CatalogPdfGenerator();
 $profile = new CustomCatalogProfile();
 $rows = (new ReflectionMethod($generator, 'getProducts'))->invoke($generator, $profile, 2);
+check(!str_contains(Db::$lastQuery, 'customcatalogonpdf_tarif_line'), 'Without a selected tariff, the product query remains unrestricted by tariff.');
 check(Product::$calls === [[1, 2, 3], [2, 2, 3]], 'Native Product::isNew is used once per product in the current shop/language.');
 check($rows[0]['is_new'] && $rows[1]['is_new'] && !$rows[2]['is_new'], 'Native novelty status is shared by variants and not applied to old products.');
+$profile->id_tarif = 17;
+(new ReflectionMethod($generator, 'getProducts'))->invoke($generator, $profile, 2);
+check(str_contains(Db::$lastQuery, 'tl.id_tarif = 17')
+    && str_contains(Db::$lastQuery, 'tl.id_product_attribute = COALESCE(pa.id_product_attribute, 0)'),
+    'Selecting a tariff filters products and exact combinations from its lines.');
 $categories = (new ReflectionMethod($generator, 'groupByCategory'))->invoke($generator, $rows);
 $products = $categories[0]['products'];
 check($products[1]['is_new'] && !$products[2]['is_new'], 'Novelty status survives category grouping.');

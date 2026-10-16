@@ -20,6 +20,9 @@ class CustomCatalogProfile extends ObjectModel
     /** @var string JSON-encoded array d'id_manufacturer */
     public $id_manufacturers;
 
+    /** @var int Tarif utilisé comme source de produits */
+    public $id_tarif;
+
     /** @var int Groupe client pour le calcul de prix */
     public $id_group;
 
@@ -48,6 +51,7 @@ class CustomCatalogProfile extends ObjectModel
             'name'             => ['type' => self::TYPE_STRING, 'required' => true, 'size' => 255],
             'title'            => ['type' => self::TYPE_STRING, 'size' => 255],
             'id_manufacturers' => ['type' => self::TYPE_STRING],
+            'id_tarif'         => ['type' => self::TYPE_INT],
             'id_group'         => ['type' => self::TYPE_INT],
             'id_customer'      => ['type' => self::TYPE_INT],
             'show_prices'      => ['type' => self::TYPE_BOOL],

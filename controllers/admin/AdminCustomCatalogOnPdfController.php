@@ -20,7 +20,8 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
         $this->bootstrap   = true;
         $this->lang        = false;
         $this->identifier  = 'id_profile';
-        $this->_defaultOrderBy = 'name';
+        $this->_defaultOrderBy = 'id_profile';
+        $this->_defaultOrderWay = 'DESC';
 
         parent::__construct();
 
@@ -103,6 +104,7 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
     {
         $id_lang       = (int) $this->context->language->id;
         $manufacturers = $this->getManufacturersList();
+        $tarifs        = $this->getTarifsList();
         $groups        = $this->getGroupsList();
         $customers     = $this->getCustomersList();
 
@@ -124,6 +126,18 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
                     'label' => $this->l('Titre visible sur la couverture'),
                     'name'  => 'title',
                     'hint'  => $this->l('Affiché en grand sur la page de couverture du PDF.'),
+                ],
+                [
+                    'type'    => 'select',
+                    'label'   => $this->l('Basé sur le tarif'),
+                    'name'    => 'id_tarif',
+                    'options' => [
+                        'query'   => $tarifs,
+                        'id'      => 'id_tarif',
+                        'name'    => 'display_name',
+                        'default' => ['value' => 0, 'label' => $this->l('— Tous les produits —')],
+                    ],
+                    'hint' => $this->l('Limite la liste aux produits et déclinaisons présents dans ce tarif. Le calcul des prix affichés reste défini par les options de prix du profil.'),
                 ],
                 [
                     'type'     => 'select',
@@ -302,6 +316,30 @@ class AdminCustomCatalogOnPdfController extends ModuleAdminController
     {
         $groups = Group::getGroups((int) $this->context->language->id);
         return $groups ?: [];
+    }
+
+    private function getTarifsList(): array
+    {
+        $rows = Db::getInstance()->executeS('
+            SELECT t.id_tarif,
+                   CONCAT(
+                       t.name,
+                       " — ",
+                       IF(
+                           c.id_customer IS NULL,
+                           "' . pSQL($this->l('Sans client')) . '",
+                           CONCAT(c.firstname, " ", c.lastname, " (", c.email, ")")
+                       )
+                   ) AS display_name
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif` t
+            LEFT JOIN `' . _DB_PREFIX_ . 'customer` c ON c.id_customer = t.id_customer
+            ORDER BY t.name ASC, t.id_tarif DESC');
+
+        if ($rows === false) {
+            throw new RuntimeException($this->l('Impossible de charger les tarifs.'));
+        }
+
+        return $rows;
     }
 
     private function getCustomersList(): array
