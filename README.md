@@ -17,6 +17,7 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - affichage des références produit et déclinaison ;
 - regroupement configurable des produits par catégorie la plus basse ou par catégorie par défaut ;
 - ajout de l'image de couverture de chaque produit ;
+- badge **NOUVEAU** orange à texte blanc sur les fiches des nouveaux produits, selon la règle native PrestaShop (date d'ajout dans la boutique et durée de nouveauté configurée), sans réglage supplémentaire dans le module ;
 - conversion et compression des images pour limiter le poids du PDF ;
 - page de couverture avec logo, titre, contexte tarifaire, client et date ;
 - sommaire paginé par catégorie ;
@@ -119,11 +120,25 @@ Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarific
 
 1. Cliquer sur **Ajouter**, saisir un **nom**, sélectionner un **client** et, si besoin, téléverser un **logo**.
 2. Enregistrer : l'éditeur de contenu s'affiche sous le formulaire.
-3. Rechercher un produit (nom, référence ou EAN), choisir une section cible puis **Ajouter**. Pour un produit à déclinaisons, la recherche propose chaque déclinaison individuellement **et** une entrée globale « Toutes les déclinaisons » qui les ajoute toutes d'un coup dans la section.
+3. Rechercher un produit (nom, référence, EAN ou marque), éventuellement filtrer par **Marque**, choisir une section cible puis **Ajouter**. Le select exclut les produits et déclinaisons déjà présents dans le tarif. Pour un produit à déclinaisons, il propose chaque déclinaison restante individuellement **et** une entrée globale « Déclinaisons restantes » qui les ajoute toutes d'un coup dans la section.
 4. Pour un ajout en masse, cliquer sur **Réf. en masse** : une fenêtre propose une section cible et une zone de texte où l'on colle une référence (produit ou déclinaison) par ligne. Toutes les références reconnues sont ajoutées dans la section choisie ; les références introuvables et celles déjà présentes dans le tarif sont listées.
 5. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer. Chaque en-tête de section dispose d'un champ **réduction %** avec bouton **Appliquer** qui, après confirmation, écrase la réduction client de toutes les lignes de la section.
 
+Le bouton **Replier / Déplier** dans chaque en-tête masque ou affiche les produits de la section, y compris **Sans section** et les sections nouvellement créées. L'en-tête reste visible et les lignes restent dans le tarif : leur ordre, leurs prix et les exports ne changent pas. Les sections sont dépliées au chargement de la page.
+
+La colonne **Traité** permet de cocher ou décocher chaque ligne pour suivre sa vérification, même si sa réduction reste à 0 %. La coche est enregistrée immédiatement dans le tarif et conservée au rechargement. Elle est indépendante des prix, des réductions, de la validation et des exports. Les nouvelles lignes sont non traitées ; lors d'une duplication vers un autre client, les coches sont réinitialisées pour permettre une nouvelle vérification. Une erreur d'enregistrement est signalée et la case reprend son état précédent.
+
+La version **1.3.9** ajoute la colonne de suivi `is_processed`. Sur une installation existante, lancer la **mise à jour du module** dans le gestionnaire de modules avant d'utiliser cette version ; les lignes existantes démarrent non traitées.
+
 Un même produit (couple produit / déclinaison) ne peut être ajouté qu'une seule fois dans un tarif : les tentatives de doublon sont bloquées en ajout unitaire et ignorées en ajout en masse.
+
+Le bouton **Parcourir les produits** ouvre une modal complémentaire au select. Elle permet de parcourir tous les produits de la boutique courante, par pages de 24 produits parents, et de filtrer par marque ou de rechercher par nom, référence, EAN ou marque. Chaque produit simple ou déclinaison dispose d'une fiche avec photo (si disponible), référence, nom et prix catalogue HT dans la devise courante. La **section cible** se choisit sur chaque fiche avant de cliquer sur **Ajouter**, sans fermer la modal. Les fiches déjà présentes dans le tarif restent visibles, grisées et non ajoutables ; une fiche ajoutée devient immédiatement grisée. Les produits partiellement ajoutés conservent leurs déclinaisons restantes disponibles.
+
+Les produits **inactifs** dans la boutique courante et leurs déclinaisons restent ajoutables dans le select et dans la modal. Ils sont signalés par la mention **Inactif**, y compris dans l'entrée globale des déclinaisons restantes. Ce statut ne les grise pas et ne bloque pas leur ajout ; seule leur présence dans le tarif empêche un doublon.
+
+Les filtres **Marque** du select et de la modal proposent **Sans marque** pour rechercher les produits sans fabricant associé. Dans la modal, la case **Afficher uniquement les produits absents du tarif** masque les produits et déclinaisons déjà ajoutés, tout en conservant les déclinaisons manquantes des produits partiellement présents. Le filtre est appliqué avant la pagination et se combine avec la marque et la recherche. Après un ajout avec cette case cochée, la liste revient à la première page et s'actualise. Case décochée, les produits déjà présents restent visibles et grisés ; le select exclut toujours les doublons.
+
+Sur une fiche de déclinaison disponible dans la modal, **Ajouter toutes les déclinaisons restantes** ajoute le produit déclinable entier dans la section choisie sur cette fiche. Les déclinaisons déjà présentes sont ignorées et restent dans leur section actuelle. Toutes les fiches du produit deviennent ensuite grisées et non ajoutables, sans fermer la modal ; le bouton **Ajouter** conserve l'ajout individuel.
 
 Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix catalogue HT**, la **remise de groupe** du client (non modifiable, pour information), un champ de **réduction client en pourcentage** et le **prix final HT**. La réduction client et le prix final sont liés en direct : saisir l'un recalcule l'autre instantanément (réduction et prix final sont exprimés par rapport au prix catalogue, arrondis à 2 décimales). Une flèche **→** à droite de la remise de groupe permet de la réappliquer en un clic à la réduction client. Une pastille indique l'origine de la réduction affichée : **Remise groupe** (le pourcentage correspond à la remise du groupe), **Remise client** (le pourcentage est verrouillé sur le client via un prix spécifique) ou **Remise perso** (valeur négociée qui n'est encore ni sur le client ni issue du groupe, en attente de validation).
 
@@ -268,6 +283,18 @@ Contrôler le client ou le groupe choisi, la devise et le pays actifs dans le co
 - les produits virtuels sont exclus ;
 - le catalogue est généré à la demande, sans planification automatique ;
 - aucun fichier PDF n'est conservé par le module après le téléchargement.
+
+## Tests de recherche produit
+
+Exécuter `php tests/catalog-new-badge.php` pour vérifier l'utilisation de la règle native de nouveauté PrestaShop, sa propagation aux déclinaisons et le rendu du badge PDF (couleurs, position et saut de page).
+
+Exécuter `php tests/product-search.php` depuis le dossier du module (extension PHP PDO SQLite requise). Ces tests autonomes utilisent une base en mémoire, sans modifier la boutique, et couvrent les marques, l'exclusion des doublons, les déclinaisons restantes, les fiches de la modal, la pagination et les erreurs.
+
+Exécuter également `node tests/product-modal.cjs` pour vérifier le rendu du bouton d'ajout de toutes les déclinaisons, la section cible, le grisement des fiches après ajout, la gestion des erreurs et le maintien de l'ajout individuel.
+
+Exécuter `node tests/section-collapse.cjs` pour vérifier le repli/dépli indépendant des sections, les états d'accessibilité et les contrôles des sections existantes ou créées dynamiquement.
+
+Exécuter `node tests/line-processed.cjs` pour vérifier la coche de suivi, son rendu et le rétablissement de son état en cas d'erreur ; les tests PHP vérifient également sa persistance et son isolation par tarif.
 
 ## Auteur
 

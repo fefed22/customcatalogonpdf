@@ -100,7 +100,7 @@ class TarifService
         );
     }
 
-    public function searchProducts(string $term): array
+    public function searchProducts(string $term, int $idTarif = 0, int $idManufacturer = 0): array
     {
         $term = trim($term);
         if ($term === '' || Tools::strlen($term) < 2) {
@@ -108,43 +108,37 @@ class TarifService
         }
 
         $idLang = (int) $this->context->language->id;
-        $idShop = (int) $this->context->shop->id;
-        $escaped = pSQL($term);
-
-        $products = Db::getInstance()->executeS('
-            SELECT p.id_product, pl.name, p.reference, p.ean13
-            FROM `' . _DB_PREFIX_ . 'product` p
-            INNER JOIN `' . _DB_PREFIX_ . 'product_lang` pl
-                ON pl.id_product = p.id_product
-               AND pl.id_lang = ' . $idLang . '
-               AND pl.id_shop = ' . $idShop . '
-            WHERE (
-                  pl.name LIKE "%' . $escaped . '%"
-                  OR p.reference LIKE "%' . $escaped . '%"
-                  OR p.ean13 LIKE "%' . $escaped . '%"
-              )
-            ORDER BY pl.name
-            LIMIT 30
-        ') ?: [];
+        $products = $this->findProducts($term, $idManufacturer, 0, 30, $idTarif);
+        $existing = $this->getExistingProductKeys($idTarif);
 
         $results = [];
         foreach ($products as $p) {
             $idProduct = (int) $p['id_product'];
+            $name = $p['name'] . (!(bool) $p['active'] ? ' [' . $this->module->l('Inactif') . ']' : '');
             $combinations = $this->getCombinations($idProduct, $idLang);
 
             if (empty($combinations)) {
+                if (isset($existing[$idProduct . ':0'])) {
+                    continue;
+                }
                 $results[] = [
                     'id' => $idProduct . ':0',
-                    'text' => $this->buildProductLabel($p['name'], '', $p['reference'], $p['ean13']),
+                    'text' => $this->buildProductLabel($name, '', $p['reference'], $p['ean13']),
                 ];
                 continue;
             }
 
-            // Entrée globale : ajoute toutes les déclinaisons du produit
+            $combinations = array_values(array_filter($combinations, function (array $combination) use ($existing, $idProduct): bool {
+                return !isset($existing[$idProduct . ':' . (int) $combination['id_product_attribute']]);
+            }));
+            if (!$combinations) {
+                continue;
+            }
+
             $results[] = [
                 'id' => $idProduct . ':all',
-                'text' => $p['name'] . ' — ' . sprintf(
-                    $this->module->l('Toutes les déclinaisons (%d)'),
+                'text' => $name . ' — ' . sprintf(
+                    $this->module->l('Déclinaisons restantes (%d)'),
                     count($combinations)
                 ),
             ];
@@ -153,7 +147,7 @@ class TarifService
                 $results[] = [
                     'id' => $idProduct . ':' . (int) $combination['id_product_attribute'],
                     'text' => $this->buildProductLabel(
-                        $p['name'],
+                        $name,
                         $combination['attribute_names'],
                         $combination['reference'] ?: $p['reference'],
                         $combination['ean13'] ?: $p['ean13']
@@ -163,6 +157,139 @@ class TarifService
         }
 
         return $results;
+    }
+
+    public function getProductManufacturers(): array
+    {
+        $rows = Db::getInstance()->executeS('
+            SELECT DISTINCT m.id_manufacturer, m.name
+            FROM `' . _DB_PREFIX_ . 'manufacturer` m
+            INNER JOIN `' . _DB_PREFIX_ . 'product` p ON p.id_manufacturer = m.id_manufacturer
+            INNER JOIN `' . _DB_PREFIX_ . 'product_shop` ps
+                ON ps.id_product = p.id_product AND ps.id_shop = ' . (int) $this->context->shop->id . '
+            ORDER BY m.name');
+        if ($rows === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les marques.'));
+        }
+
+        return $rows;
+    }
+
+    private function findProducts(string $term, int $idManufacturer, int $offset, int $limit, int $excludeTarif = 0): array
+    {
+        $escaped = pSQL(trim($term));
+        $where = '';
+        $availabilityJoin = '';
+        if ($escaped !== '') {
+            $where .= ' AND (
+                pl.name LIKE "%' . $escaped . '%"
+                OR p.reference LIKE "%' . $escaped . '%"
+                OR p.ean13 LIKE "%' . $escaped . '%"
+                OR m.name LIKE "%' . $escaped . '%"
+                OR EXISTS (
+                    SELECT 1 FROM `' . _DB_PREFIX_ . 'product_attribute` search_pa
+                    WHERE search_pa.id_product = p.id_product
+                      AND (search_pa.reference LIKE "%' . $escaped . '%"
+                           OR search_pa.ean13 LIKE "%' . $escaped . '%")
+                )
+            )';
+        }
+        if ($idManufacturer > 0) {
+            $where .= ' AND p.id_manufacturer = ' . $idManufacturer;
+        } elseif ($idManufacturer === -1) {
+            $where .= ' AND (p.id_manufacturer = 0 OR p.id_manufacturer IS NULL)';
+        }
+        if ($excludeTarif > 0) {
+            // La cible 0 représente un produit simple ; les autres sont ses déclinaisons.
+            $availabilityJoin = '
+                LEFT JOIN `' . _DB_PREFIX_ . 'product_attribute` available_pa
+                    ON available_pa.id_product = p.id_product
+                LEFT JOIN `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line` available_line
+                    ON available_line.id_tarif = ' . $excludeTarif . '
+                   AND available_line.id_product = p.id_product
+                   AND available_line.id_product_attribute = COALESCE(available_pa.id_product_attribute, 0)';
+            $where .= ' AND available_line.id_tarif IS NULL';
+        }
+        $rows = Db::getInstance()->executeS('
+            SELECT DISTINCT p.id_product, pl.name, p.reference, p.ean13, ps.active, m.name AS manufacturer_name
+            FROM `' . _DB_PREFIX_ . 'product` p
+            INNER JOIN `' . _DB_PREFIX_ . 'product_shop` ps
+                ON ps.id_product = p.id_product AND ps.id_shop = ' . (int) $this->context->shop->id . '
+            INNER JOIN `' . _DB_PREFIX_ . 'product_lang` pl
+                ON pl.id_product = p.id_product
+               AND pl.id_lang = ' . (int) $this->context->language->id . '
+               AND pl.id_shop = ps.id_shop
+            LEFT JOIN `' . _DB_PREFIX_ . 'manufacturer` m ON m.id_manufacturer = p.id_manufacturer
+            ' . $availabilityJoin . '
+            WHERE 1 ' . $where . '
+            ORDER BY pl.name, p.id_product
+            LIMIT ' . $offset . ', ' . $limit);
+        if ($rows === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les produits.'));
+        }
+
+        return $rows;
+    }
+
+    private function getExistingProductKeys(int $idTarif): array
+    {
+        if ($idTarif <= 0) {
+            return [];
+        }
+        $rows = Db::getInstance()->executeS('
+            SELECT id_product, id_product_attribute
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_tarif = ' . $idTarif);
+        if ($rows === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les produits du tarif.'));
+        }
+        $keys = [];
+        foreach ($rows as $row) {
+            $keys[$row['id_product'] . ':' . $row['id_product_attribute']] = true;
+        }
+
+        return $keys;
+    }
+
+    public function browseProducts(int $idTarif, string $term, int $idManufacturer, int $page, bool $onlyMissing = false): array
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+        $page = max(1, $page);
+        $pageSize = 24;
+        $products = $this->findProducts($term, $idManufacturer, ($page - 1) * $pageSize, $pageSize + 1, $onlyMissing ? $idTarif : 0);
+        $hasMore = count($products) > $pageSize;
+        $existing = $this->getExistingProductKeys($idTarif);
+        $results = [];
+        foreach (array_slice($products, 0, $pageSize) as $product) {
+            $idProduct = (int) $product['id_product'];
+            $combinations = $this->getCombinations($idProduct, (int) $this->context->language->id);
+            $targets = $combinations ?: [['id_product_attribute' => 0]];
+            foreach ($targets as $target) {
+                $idAttribute = (int) $target['id_product_attribute'];
+                $key = $idProduct . ':' . $idAttribute;
+                if ($onlyMissing && isset($existing[$key])) {
+                    continue;
+                }
+                $info = $this->getProductInfo($idProduct, $idAttribute);
+                if (!$info) {
+                    throw new RuntimeException($this->module->l('Produit introuvable.'));
+                }
+                $results[] = array_merge($info, [
+                    'id' => $key,
+                    'id_product' => $idProduct,
+                    'combination_count' => count($combinations),
+                    'active' => (bool) $product['active'],
+                    'manufacturer_name' => (string) ($product['manufacturer_name'] ?? $this->module->l('Sans marque')),
+                    'price' => Tools::displayPrice($this->getBasePrice($idProduct, $idAttribute), $this->context->currency),
+                    'in_tarif' => isset($existing[$key]),
+                ]);
+            }
+        }
+
+        return ['products' => $results, 'page' => $page, 'has_more' => $hasMore];
     }
 
     private function buildProductLabel(string $name, string $attributes, ?string $reference, ?string $ean): string
@@ -575,6 +702,7 @@ class TarifService
 
         return [
             'id_line' => (int) $line['id_line'],
+            'is_processed' => (bool) $line['is_processed'],
             'id_section' => (int) $line['id_section'],
             'id_product' => $idProduct,
             'id_product_attribute' => $idProductAttribute,
@@ -849,6 +977,24 @@ class TarifService
             WHERE id_line = ' . $idLine);
 
         return $this->decorateLine($row, (int) $tarif->id_customer);
+    }
+
+    public function setLineProcessed(int $idTarif, int $idLine, bool $processed): array
+    {
+        $db = Db::getInstance();
+        $line = $db->getRow('
+            SELECT id_line FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_line = ' . $idLine . ' AND id_tarif = ' . $idTarif);
+        if (!$line) {
+            throw new RuntimeException($this->module->l('Ligne introuvable.'));
+        }
+        if (!$db->update('customcatalogonpdf_tarif_line', [
+            'is_processed' => (int) $processed,
+        ], 'id_line = ' . $idLine . ' AND id_tarif = ' . $idTarif)) {
+            throw new RuntimeException($this->module->l('Impossible d’enregistrer le suivi de cette ligne.'));
+        }
+
+        return ['id_line' => $idLine, 'is_processed' => $processed];
     }
 
     /**

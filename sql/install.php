@@ -53,6 +53,7 @@ return [
         `current_price`         DECIMAL(20,6)    NOT NULL DEFAULT 0,
         `reduction_percent`     DECIMAL(10,4)    NOT NULL DEFAULT 0,
         `final_price`           DECIMAL(20,6)    NOT NULL DEFAULT 0,
+        `is_processed`          TINYINT(1)       NOT NULL DEFAULT 0,
         PRIMARY KEY (`id_line`),
         KEY `id_tarif` (`id_tarif`),
         KEY `id_section` (`id_section`)

@@ -22,6 +22,14 @@
     {* ── Barre d'actions ─────────────────────────────────────────────── *}
     <div class="row tarif-toolbar">
       <div class="col-lg-5 col-md-6">
+        <label for="tarif-product-manufacturer">{l s='Marque' mod='customcatalogonpdf'}</label>
+        <select id="tarif-product-manufacturer" class="form-control">
+          <option value="0">{l s='Toutes les marques' mod='customcatalogonpdf'}</option>
+          <option value="-1">{l s='Sans marque' mod='customcatalogonpdf'}</option>
+          {foreach from=$product_manufacturers item=manufacturer}
+            <option value="{$manufacturer.id_manufacturer|intval}">{$manufacturer.name|escape:'htmlall':'UTF-8'}</option>
+          {/foreach}
+        </select>
         <label>{l s='Ajouter un produit' mod='customcatalogonpdf'}</label>
         <input type="hidden"
                id="tarif-product-search"
@@ -47,6 +55,9 @@
       <div class="col-lg-4 col-md-12 text-right tarif-toolbar-buttons">
         <label class="hidden-md hidden-sm hidden-xs">&nbsp;</label>
         <div>
+          <button type="button" class="btn btn-default" id="tarif-browse-products">
+            <i class="icon-th"></i> {l s='Parcourir les produits' mod='customcatalogonpdf'}
+          </button>
           <button type="button" class="btn btn-default" id="tarif-add-section">
             <i class="icon-folder-open"></i> {l s='Section' mod='customcatalogonpdf'}
           </button>
@@ -91,6 +102,14 @@
         <div class="tarif-section{if $section.id_section == 0} tarif-section-none{/if}"
              data-id-section="{$section.id_section|intval}">
           <div class="tarif-section-header">
+            <button type="button" class="btn btn-default btn-xs tarif-toggle-section"
+                    aria-expanded="true"
+                    aria-controls="tarif-section-head-{$section.id_section|intval} tarif-section-lines-{$section.id_section|intval}"
+                    data-collapse-label="{l s='Replier' mod='customcatalogonpdf'}"
+                    data-expand-label="{l s='Déplier' mod='customcatalogonpdf'}">
+              <i class="icon-chevron-down" aria-hidden="true"></i>
+              <span>{l s='Replier' mod='customcatalogonpdf'}</span>
+            </button>
             {if $section.id_section > 0}
               <span class="tarif-drag-section" title="{l s='Déplacer la section' mod='customcatalogonpdf'}"><i class="icon-arrows"></i></span>
               <input type="text"
@@ -122,7 +141,7 @@
             {/if}
           </div>
 
-          <div class="tarif-lines-head">
+          <div class="tarif-lines-head" id="tarif-section-head-{$section.id_section|intval}">
             <span class="tarif-cell tarif-col-drag"></span>
             <span class="tarif-cell tarif-col-img">{l s='Image' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-info">{l s='Produit' mod='customcatalogonpdf'}</span>
@@ -131,9 +150,10 @@
             <span class="tarif-cell tarif-col-num">{l s='Réduction client %' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-num">{l s='Prix final HT' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-actions"></span>
+            <span class="tarif-cell tarif-col-processed">{l s='Traité' mod='customcatalogonpdf'}</span>
           </div>
 
-          <div class="tarif-lines" data-id-section="{$section.id_section|intval}">
+          <div class="tarif-lines" id="tarif-section-lines-{$section.id_section|intval}" data-id-section="{$section.id_section|intval}">
             {foreach from=$section.lines item=line}
               <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-base-price="{$line.base_price|string_format:"%.6f"}" data-group-reduction="{$line.group_reduction_percent|string_format:"%.4f"}">
                 <span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
@@ -178,6 +198,11 @@
                     <i class="icon-trash"></i>
                   </button>
                 </span>
+                <span class="tarif-cell tarif-col-processed">
+                  <input type="checkbox" class="tarif-processed"
+                         aria-label="{l s='Marquer cette ligne comme traitée' mod='customcatalogonpdf'}"
+                         {if $line.is_processed}checked{/if}>
+                </span>
               </div>
             {/foreach}
           </div>
@@ -200,6 +225,51 @@
       </button>
     </form>
 
+  </div>
+</div>
+
+<div class="modal fade" id="tarif-products-modal" tabindex="-1" role="dialog" aria-labelledby="tarif-products-title">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="{l s='Fermer' mod='customcatalogonpdf'}"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="tarif-products-title">{l s='Produits du site' mod='customcatalogonpdf'}</h4>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-sm-4 form-group">
+            <label for="tarif-browser-manufacturer">{l s='Marque' mod='customcatalogonpdf'}</label>
+            <select id="tarif-browser-manufacturer" class="form-control">
+              <option value="0">{l s='Toutes les marques' mod='customcatalogonpdf'}</option>
+              <option value="-1">{l s='Sans marque' mod='customcatalogonpdf'}</option>
+              {foreach from=$product_manufacturers item=manufacturer}
+                <option value="{$manufacturer.id_manufacturer|intval}">{$manufacturer.name|escape:'htmlall':'UTF-8'}</option>
+              {/foreach}
+            </select>
+          </div>
+          <div class="col-sm-8 form-group">
+            <label for="tarif-browser-search">{l s='Rechercher un produit' mod='customcatalogonpdf'}</label>
+            <input type="search" id="tarif-browser-search" class="form-control"
+                   placeholder="{l s='Nom, référence, EAN ou marque' mod='customcatalogonpdf'}">
+          </div>
+        </div>
+        <div class="checkbox">
+          <label for="tarif-browser-only-missing">
+            <input type="checkbox" id="tarif-browser-only-missing">
+            {l s='Afficher uniquement les produits absents du tarif' mod='customcatalogonpdf'}
+          </label>
+        </div>
+        <p class="help-block">{l s='Prix catalogue HT. Chaque déclinaison a sa propre fiche. Les produits déjà présents dans le tarif sont grisés et ne peuvent pas être ajoutés à nouveau.' mod='customcatalogonpdf'}</p>
+        <div id="tarif-browser-status" role="status" aria-live="polite"></div>
+        <div id="tarif-browser-products" class="tarif-product-grid"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" id="tarif-browser-previous">{l s='Précédent' mod='customcatalogonpdf'}</button>
+        <span id="tarif-browser-page"></span>
+        <button type="button" class="btn btn-default" id="tarif-browser-next">{l s='Suivant' mod='customcatalogonpdf'}</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">{l s='Fermer' mod='customcatalogonpdf'}</button>
+      </div>
+    </div>
   </div>
 </div>
 

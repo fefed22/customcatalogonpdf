@@ -411,6 +411,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
                 'date_validated' => $tarif->date_validated,
             ],
             'sections' => $data['sections'] ?? [],
+            'product_manufacturers' => $this->service->getProductManufacturers(),
             'customer' => $data['customer'] ?? null,
             'has_changes' => !empty($data['has_changes']),
             'ajax_url' => $ajaxUrl,
@@ -439,9 +440,33 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     public function ajaxProcessSearchProducts(): void
     {
-        $this->ajaxRender(json_encode([
-            'results' => $this->service->searchProducts((string) Tools::getValue('term', '')),
-        ]));
+        try {
+            $this->ajaxRender(json_encode([
+                'results' => $this->service->searchProducts(
+                    (string) Tools::getValue('term', ''),
+                    (int) Tools::getValue('id_tarif'),
+                    (int) Tools::getValue('id_manufacturer')
+                ),
+            ]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessBrowseProducts(): void
+    {
+        try {
+            $result = $this->service->browseProducts(
+                (int) Tools::getValue('id_tarif'),
+                (string) Tools::getValue('term', ''),
+                (int) Tools::getValue('id_manufacturer'),
+                (int) Tools::getValue('page', 1),
+                (bool) Tools::getValue('only_missing', false)
+            );
+            $this->ajaxRender(json_encode(array_merge(['success' => true], $result)));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
     }
 
     public function ajaxProcessAddLine(): void
@@ -480,6 +505,24 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             $value = $this->parseFloat((string) Tools::getValue('value'));
             $result = $this->service->updateLine($idTarif, $idLine, $mode, $value);
             $this->ajaxRender(json_encode(['success' => true, 'line' => $result]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessSetLineProcessed(): void
+    {
+        try {
+            $value = (string) Tools::getValue('is_processed');
+            if (!in_array($value, ['0', '1'], true)) {
+                throw new RuntimeException($this->l('Statut de traitement invalide.'));
+            }
+            $line = $this->service->setLineProcessed(
+                (int) Tools::getValue('id_tarif'),
+                (int) Tools::getValue('id_line'),
+                $value === '1'
+            );
+            $this->ajaxRender(json_encode(['success' => true, 'line' => $line]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
         }
