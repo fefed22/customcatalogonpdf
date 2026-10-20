@@ -67,6 +67,7 @@ return [
         `group_reduction_percent` DECIMAL(10,4)  NOT NULL DEFAULT 0,
         `current_price`         DECIMAL(20,6)    NOT NULL DEFAULT 0,
         `reduction_percent`     DECIMAL(10,4)    NOT NULL DEFAULT 0,
+        `additional_reduction_percent` DECIMAL(10,4) NOT NULL DEFAULT 0,
         `final_price`           DECIMAL(20,6)    NOT NULL DEFAULT 0,
         `is_processed`          TINYINT(1)       NOT NULL DEFAULT 0,
         PRIMARY KEY (`id_line`),

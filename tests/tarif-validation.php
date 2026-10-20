@@ -33,6 +33,22 @@ class ObjectModel
             'date_validated' => $this->date_validated,
         ], 'id_tarif = ' . $this->id);
     }
+
+    public function add(): bool
+    {
+        $db = Db::getInstance();
+        if (!$db->insert('customcatalogonpdf_tarif', [
+            'id_customer' => $this->id_customer,
+            'name' => $this->name,
+            'logo' => $this->logo,
+            'status' => $this->status,
+            'date_validated' => $this->date_validated,
+        ])) {
+            return false;
+        }
+        $this->id = $db->Insert_ID();
+        return true;
+    }
 }
 
 class Validate
@@ -95,6 +111,7 @@ class Db
 {
     public PDO $pdo;
     public string $failure = '';
+    public int $lineWritesBeforeFailure = -1;
     private static ?self $instance = null;
 
     public static function getInstance(): self
@@ -105,14 +122,16 @@ class Db
     public function reset(): void
     {
         $this->failure = '';
+        $this->lineWritesBeforeFailure = -1;
         $this->pdo = new PDO('sqlite::memory:');
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->pdo->exec('
             CREATE TABLE ps_customcatalogonpdf_tarif (
                 id_tarif INTEGER PRIMARY KEY, id_customer INTEGER, status INTEGER,
-                date_validated TEXT, date_add TEXT, date_upd TEXT, name TEXT
+                date_validated TEXT, date_add TEXT, date_upd TEXT, name TEXT, logo TEXT DEFAULT ""
             );
-            INSERT INTO ps_customcatalogonpdf_tarif VALUES (1, 10, 0, NULL, "", "", "Test");
+            INSERT INTO ps_customcatalogonpdf_tarif (id_tarif, id_customer, status, date_validated, date_add, date_upd, name)
+                VALUES (1, 10, 0, NULL, "", "", "Test");
             CREATE TABLE ps_customer (
                 id_customer INTEGER, id_default_group INTEGER, firstname TEXT, lastname TEXT, deleted INTEGER
             );
@@ -125,7 +144,12 @@ class Db
                 id_line INTEGER PRIMARY KEY, id_tarif INTEGER, id_product INTEGER,
                 id_product_attribute INTEGER, final_price NUMERIC,
                 base_price NUMERIC DEFAULT 80, group_reduction_percent NUMERIC DEFAULT 0,
-                current_price NUMERIC DEFAULT 80, reduction_percent NUMERIC DEFAULT 20
+                current_price NUMERIC DEFAULT 80, reduction_percent NUMERIC DEFAULT 20,
+                additional_reduction_percent NUMERIC DEFAULT 0, id_section INTEGER DEFAULT 0,
+                position INTEGER DEFAULT 0, is_processed INTEGER DEFAULT 0
+            );
+            CREATE TABLE ps_customcatalogonpdf_tarif_section (
+                id_section INTEGER PRIMARY KEY AUTOINCREMENT, id_tarif INTEGER, title TEXT, position INTEGER
             );
             INSERT INTO ps_customcatalogonpdf_tarif_line (id_line, id_tarif, id_product, id_product_attribute, final_price)
                 VALUES (1, 1, 1, 0, 80), (2, 1, 2, 21, 70);
@@ -183,6 +207,9 @@ class Db
             $sql = preg_replace('/,\s*KEY `tarif_history` \([^)]*\)/', '', $sql);
             $sql = str_replace(' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4', '', $sql);
         }
+        if (strpos($sql, 'ALTER TABLE') === 0) {
+            $sql = str_replace(' AFTER `reduction_percent`', '', $sql);
+        }
 
         return $this->pdo->exec($sql) !== false;
     }
@@ -195,6 +222,12 @@ class Db
         if ($this->fails('read')) {
             return false;
         }
+        if (str_starts_with($sql, 'SHOW COLUMNS')) {
+            return array_values(array_filter(
+                $this->pdo->query('PRAGMA table_info(ps_customcatalogonpdf_tarif_line)')->fetchAll(PDO::FETCH_ASSOC),
+                static fn (array $column): bool => $column['name'] === 'additional_reduction_percent'
+            ));
+        }
 
         return $this->pdo->query(str_replace(' FOR UPDATE', '', $sql))->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -202,6 +235,16 @@ class Db
     public function getValue(string $sql)
     {
         return $this->pdo->query($sql)->fetchColumn();
+    }
+
+    public function getRow(string $sql)
+    {
+        return $this->executeS($sql)[0] ?? false;
+    }
+
+    public function Insert_ID(): int
+    {
+        return (int) $this->pdo->lastInsertId();
     }
 
     public function delete(string $table, string $where): bool
@@ -223,6 +266,11 @@ class Db
 
     public function update(string $table, array $data, string $where): bool
     {
+        if ($table === 'customcatalogonpdf_tarif_line' && $this->lineWritesBeforeFailure >= 0) {
+            if ($this->lineWritesBeforeFailure-- === 0) {
+                return false;
+            }
+        }
         if ($this->fails('update:' . $table)) {
             return false;
         }
@@ -253,6 +301,16 @@ class TestTarifService extends TarifService
     public function getCurrentPrice(int $idProduct, int $idProductAttribute, int $idCustomer): float
     {
         return 90;
+    }
+
+    public function getProductInfo(int $idProduct, int $idProductAttribute): ?array
+    {
+        return ['name' => 'Product ' . $idProduct, 'reference' => 'REF-' . $idProduct];
+    }
+
+    public function getCustomerOption(int $idCustomer): ?array
+    {
+        return ['id' => $idCustomer, 'text' => 'Customer ' . $idCustomer];
     }
 }
 
@@ -416,6 +474,8 @@ check(state()[0] === $before[0], 'Synchronization after group-only validation ch
 
 class ModuleAdminController
 {
+    public string $display = 'edit';
+    public array $toolbar_btn = [];
     public bool $validToken = true;
     public bool $canEdit = true;
     public array $response = [];
@@ -424,6 +484,11 @@ class ModuleAdminController
     public function l(string $message): string
     {
         return $message;
+    }
+
+    public function initToolbar()
+    {
+        $this->toolbar_btn = ['save' => ['href' => '#'], 'cancel' => ['href' => 'list']];
     }
 
     public function checkToken(): bool
@@ -445,6 +510,13 @@ class ModuleAdminController
 require dirname(__DIR__) . '/controllers/admin/AdminCustomCatalogTarifController.php';
 $controller = (new ReflectionClass(AdminCustomCatalogTarifController::class))->newInstanceWithoutConstructor();
 (new ReflectionProperty($controller, 'service'))->setValue($controller, $service);
+$controller->initToolbar();
+check(!isset($controller->toolbar_btn['save']) && isset($controller->toolbar_btn['cancel']),
+    'Editing removes only the top save button and preserves navigation.');
+$controller->display = 'add';
+$controller->initToolbar();
+check(isset($controller->toolbar_btn['save']), 'Creating a tariff retains the top save button.');
+$controller->display = 'edit';
 $db->reset();
 Tools::$request = ['id_tarif' => 1, 'validation_target' => 'group', 'id_target' => 3];
 $_SERVER['REQUEST_METHOD'] = 'POST';

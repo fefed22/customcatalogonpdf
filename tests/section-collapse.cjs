@@ -77,7 +77,11 @@ assert.match(html, /aria-controls="tarif-section-head-7 tarif-section-lines-7"/)
 assert.match(html, /id="tarif-section-head-7"/);
 assert.match(html, /id="tarif-section-lines-7"/);
 assert.match(html, /&lt;New>/);
+assert(html.indexOf('tarif-section-title') < html.indexOf('tarif-delete-section')
+  && html.indexOf('tarif-delete-section') < html.indexOf('tarif-section-reduction'));
 const headerStart = template.indexOf('<div class="tarif-section-header">');
+assert(template.indexOf('tarif-section-title', headerStart) < template.indexOf('tarif-delete-section', headerStart)
+  && template.indexOf('tarif-delete-section', headerStart) < template.indexOf('tarif-section-reduction', headerStart));
 assert(template.indexOf('tarif-toggle-section', headerStart)
   < template.indexOf('{if $section.id_section > 0}', headerStart));
 assert.match(template, /id="tarif-section-head-\{\$section.id_section\|intval\}"/);

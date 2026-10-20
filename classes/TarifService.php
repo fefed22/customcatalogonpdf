@@ -507,6 +507,24 @@ class TarifService
         return round((($catalogPrice - $finalPrice) / $catalogPrice) * 100, 4);
     }
 
+    private function computeDiscountPrices(float $catalog, float $reduction, float $additional, ?float $intermediate = null): array
+    {
+        if (!is_finite($catalog) || $catalog < 0
+            || !is_finite($additional) || $additional < 0 || $additional > 100
+            || !is_finite($reduction) || $reduction > 100) {
+            throw new RuntimeException($this->module->l('Remise invalide : la remise supplémentaire doit être comprise entre 0 et 100 %.'));
+        }
+        $intermediate = $intermediate ?? $this->computeFinalFromReduction($catalog, $reduction);
+        $final = $this->computeFinalFromReduction($intermediate, $additional);
+
+        return [
+            'intermediate_price' => $intermediate,
+            'additional_reduction_percent' => $additional,
+            'total_reduction_percent' => $this->computeReductionFromFinal($catalog, $final),
+            'final_price' => $final,
+        ];
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Informations produit (affichage des lignes)
     // ─────────────────────────────────────────────────────────────────────────
@@ -673,6 +691,7 @@ class TarifService
         $storedBase = (float) $line['base_price'];
         $storedGroup = (float) $line['group_reduction_percent'];
         $reductionPercent = (float) $line['reduction_percent'];
+        $discounts = $this->computeDiscountPrices($storedBase, $reductionPercent, (float) $line['additional_reduction_percent']);
         $currentPrice = (float) $line['current_price'];
 
         $liveBase = $storedBase;
@@ -716,6 +735,9 @@ class TarifService
             'group_reduction_percent' => $storedGroup,
             'current_price' => $currentPrice,
             'reduction_percent' => $reductionPercent,
+            'additional_reduction_percent' => $discounts['additional_reduction_percent'],
+            'intermediate_price' => $discounts['intermediate_price'],
+            'total_reduction_percent' => $this->computeReductionFromFinal($storedBase, (float) $line['final_price']),
             'final_price' => (float) $line['final_price'],
             'has_group_rule' => $storedGroup > 0,
             'has_customer_rule' => $hasCustomerRule,
@@ -966,6 +988,7 @@ class TarifService
             'group_reduction_percent' => $prices['group_reduction'],
             'current_price' => $current,
             'reduction_percent' => $reductionPercent,
+            'additional_reduction_percent' => 0,
             'final_price' => $finalPrice,
         ]);
 
@@ -1000,7 +1023,7 @@ class TarifService
     /**
      * Met à jour une ligne par saisie de la réduction (%) ou du prix final.
      *
-     * @param string $mode 'reduction' ou 'price'
+     * @param string $mode 'reduction', 'additional_reduction' ou 'price' (net après les deux remises)
      */
     public function updateLine(int $idTarif, int $idLine, string $mode, float $value): array
     {
@@ -1011,21 +1034,43 @@ class TarifService
         if (!$line) {
             throw new RuntimeException($this->module->l('Ligne introuvable.'));
         }
-
-        $catalog = (float) $line['base_price'];
-
-        if ($mode === 'price') {
-            $finalPrice = round($value, 2);
-            $reductionPercent = $this->computeReductionFromFinal($catalog, $finalPrice);
-        } else {
-            $reductionPercent = round($value, 4);
-            $finalPrice = $this->computeFinalFromReduction($catalog, $reductionPercent);
+        if (!in_array($mode, ['reduction', 'additional_reduction', 'price'], true) || !is_finite($value)) {
+            throw new RuntimeException($this->module->l('Mode ou valeur de remise invalide.'));
         }
 
-        Db::getInstance()->update('customcatalogonpdf_tarif_line', [
+        $catalog = (float) $line['base_price'];
+        $reductionPercent = (float) $line['reduction_percent'];
+        $additional = (float) $line['additional_reduction_percent'];
+        $intermediate = null;
+
+        if ($mode === 'price') {
+            if ($value < 0 || ($catalog <= 0 && $value > 0)) {
+                throw new RuntimeException($this->module->l('Prix final invalide.'));
+            }
+            $net = round($value, 2);
+            if ($additional >= 100) {
+                if ($net > 0) {
+                    throw new RuntimeException($this->module->l('Une remise supplémentaire de 100 % impose un prix final nul.'));
+                }
+            } else {
+                $intermediate = round($net / (1 - $additional / 100), 2);
+                $reductionPercent = $this->computeReductionFromFinal($catalog, $intermediate);
+            }
+        } elseif ($mode === 'additional_reduction') {
+            $this->computeDiscountPrices($catalog, $reductionPercent, $value);
+            $additional = round($value, 4);
+        } else {
+            $reductionPercent = round($value, 4);
+        }
+        $discounts = $this->computeDiscountPrices($catalog, $reductionPercent, $additional, $intermediate);
+
+        if (!Db::getInstance()->update('customcatalogonpdf_tarif_line', [
             'reduction_percent' => $reductionPercent,
-            'final_price' => $finalPrice,
-        ], 'id_line = ' . (int) $idLine);
+            'additional_reduction_percent' => $additional,
+            'final_price' => $discounts['final_price'],
+        ], 'id_line = ' . (int) $idLine . ' AND id_tarif = ' . $idTarif)) {
+            throw new RuntimeException($this->module->l('Impossible d’enregistrer les remises de cette ligne.'));
+        }
 
         $this->touchById($idTarif);
 
@@ -1049,72 +1094,56 @@ class TarifService
             $hasCustomerRule
         );
 
-        return [
+        return array_merge([
             'id_line' => (int) $idLine,
             'reduction_percent' => $reductionPercent,
-            'final_price' => $finalPrice,
             'reduction_source' => $reductionSource,
-        ];
+        ], $discounts);
     }
 
     /**
-     * Applique une même réduction client (%) à toutes les lignes d'une section,
-     * en écrasant les valeurs existantes. Le prix final est recalculé par
-     * rapport au prix catalogue de chaque ligne.
-     *
-     * @return array Lignes mises à jour (id_line, reduction_percent, final_price, reduction_source)
+     * Remplace une des deux remises sur la section en conservant l'autre.
      */
-    public function applySectionReduction(int $idTarif, int $idSection, float $reductionPercent): array
+    public function applySectionReduction(int $idTarif, int $idSection, float $reductionPercent, string $mode = 'reduction'): array
     {
         $tarif = new CustomCatalogTarif($idTarif);
         if (!Validate::isLoadedObject($tarif)) {
             throw new RuntimeException($this->module->l('Tarif introuvable.'));
         }
 
-        $idCustomer = (int) $tarif->id_customer;
+        if (!in_array($mode, ['reduction', 'additional_reduction'], true)) {
+            throw new RuntimeException($this->module->l('Type de remise de section invalide.'));
+        }
+        $this->computeDiscountPrices(100, $mode === 'reduction' ? $reductionPercent : 0,
+            $mode === 'additional_reduction' ? $reductionPercent : 0);
         $reductionPercent = round($reductionPercent, 4);
 
         $lines = Db::getInstance()->executeS('
             SELECT *
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
-            WHERE id_tarif = ' . (int) $idTarif . ' AND id_section = ' . (int) $idSection) ?: [];
-
-        $updated = [];
-        foreach ($lines as $line) {
-            $catalog = (float) $line['base_price'];
-            $finalPrice = $this->computeFinalFromReduction($catalog, $reductionPercent);
-
-            Db::getInstance()->update('customcatalogonpdf_tarif_line', [
-                'reduction_percent' => $reductionPercent,
-                'final_price' => $finalPrice,
-            ], 'id_line = ' . (int) $line['id_line']);
-
-            $hasCustomerRule = $this->hasCustomerSpecificPrice(
-                (int) $line['id_product'],
-                (int) $line['id_product_attribute'],
-                $idCustomer
-            );
-            $liveCurrent = $this->getCurrentPrice(
-                (int) $line['id_product'],
-                (int) $line['id_product_attribute'],
-                $idCustomer
-            );
-
-            $updated[] = [
-                'id_line' => (int) $line['id_line'],
-                'reduction_percent' => $reductionPercent,
-                'final_price' => $finalPrice,
-                'reduction_source' => $this->resolveReductionSource(
-                    $reductionPercent,
-                    (float) $line['group_reduction_percent'],
-                    $catalog,
-                    $liveCurrent,
-                    $hasCustomerRule
-                ),
-            ];
+            WHERE id_tarif = ' . (int) $idTarif . ' AND id_section = ' . (int) $idSection);
+        if ($lines === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les lignes de la section.'));
         }
 
-        $this->touchById($idTarif);
+        $db = Db::getInstance();
+        if (!$db->execute('START TRANSACTION')) {
+            throw new RuntimeException($this->module->l('Impossible de démarrer la mise à jour de section.'));
+        }
+        try {
+            $updated = [];
+            foreach ($lines as $line) {
+                $updated[] = $this->updateLine($idTarif, (int) $line['id_line'], $mode, $reductionPercent);
+            }
+            if (!$db->execute('COMMIT')) {
+                throw new RuntimeException($this->module->l('Impossible de finaliser les remises de section.'));
+            }
+        } catch (Throwable $e) {
+            if (!$db->execute('ROLLBACK')) {
+                throw new RuntimeException($this->module->l('Échec de l’annulation des remises de section.'), 0, $e);
+            }
+            throw $e;
+        }
 
         return $updated;
     }
@@ -1226,7 +1255,7 @@ class TarifService
         }
 
         $lines = Db::getInstance()->executeS('
-            SELECT id_line, id_product, id_product_attribute, reduction_percent
+            SELECT id_line, id_product, id_product_attribute, reduction_percent, additional_reduction_percent
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
             WHERE id_tarif = ' . (int) $idTarif) ?: [];
 
@@ -1238,13 +1267,13 @@ class TarifService
             );
             // On conserve la réduction client saisie et on recalcule le prix final
             $reductionPercent = (float) $line['reduction_percent'];
-            $finalPrice = $this->computeFinalFromReduction($prices['catalog'], $reductionPercent);
+            $discounts = $this->computeDiscountPrices($prices['catalog'], $reductionPercent, (float) $line['additional_reduction_percent']);
 
             Db::getInstance()->update('customcatalogonpdf_tarif_line', [
                 'base_price' => $prices['catalog'],
                 'group_reduction_percent' => $prices['group_reduction'],
                 'current_price' => $prices['current'],
-                'final_price' => $finalPrice,
+                'final_price' => $discounts['final_price'],
             ], 'id_line = ' . (int) $line['id_line']);
         }
 
@@ -1295,8 +1324,21 @@ class TarifService
 
             $finalPrice = (float) $line['final_price'];
             $newCatalog = $prices['catalog'];
+            if ($newCatalog <= 0 && $finalPrice > 0) {
+                throw new RuntimeException($this->module->l('Un prix catalogue nul ne permet pas de conserver ce prix final.'));
+            }
             // On conserve le prix final : la réduction client est recalculée
-            $reductionPercent = $this->computeReductionFromFinal($newCatalog, $finalPrice);
+            $additional = (float) $line['additional_reduction_percent'];
+            $this->computeDiscountPrices($newCatalog, 0, $additional);
+            if ($additional < 100) {
+                $intermediate = $finalPrice / (1 - $additional / 100);
+                $reductionPercent = $this->computeReductionFromFinal($newCatalog, $intermediate);
+            } else {
+                if (abs($finalPrice) >= 0.005) {
+                    throw new RuntimeException($this->module->l('Une remise supplémentaire de 100 % impose un prix final nul.'));
+                }
+                $reductionPercent = (float) $line['reduction_percent'];
+            }
 
             Db::getInstance()->update('customcatalogonpdf_tarif_line', [
                 'base_price' => $newCatalog,
@@ -1431,7 +1473,9 @@ class TarifService
             $idProduct = (int) $line['id_product'];
             $idProductAttribute = (int) $line['id_product_attribute'];
             $reduction = (float) $line['reduction_percent'];
+            $additional = (float) $line['additional_reduction_percent'];
             $prices = $this->computeLinePrices($idProduct, $idProductAttribute, $idCustomer);
+            $discounts = $this->computeDiscountPrices($prices['catalog'], $reduction, $additional);
 
             Db::getInstance()->insert('customcatalogonpdf_tarif_line', [
                 'id_tarif' => $newIdTarif,
@@ -1443,7 +1487,8 @@ class TarifService
                 'group_reduction_percent' => $prices['group_reduction'],
                 'current_price' => $prices['current'],
                 'reduction_percent' => $reduction,
-                'final_price' => $this->computeFinalFromReduction($prices['catalog'], $reduction),
+                'additional_reduction_percent' => $additional,
+                'final_price' => $discounts['final_price'],
             ]);
         }
 
@@ -1514,7 +1559,7 @@ class TarifService
         }
         $db = Db::getInstance();
         $lines = $db->executeS('
-            SELECT id_line, id_product, id_product_attribute, final_price
+            SELECT id_line, id_product, id_product_attribute, reduction_percent, additional_reduction_percent, final_price
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
             WHERE id_tarif = ' . $idTarif . ' ORDER BY id_line' . ($lockLines ? ' FOR UPDATE' : ''), true, false);
         if ($lines === false) {

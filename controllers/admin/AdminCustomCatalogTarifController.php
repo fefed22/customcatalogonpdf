@@ -328,6 +328,14 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
     // Formulaire
     // ─────────────────────────────────────────────────────────────────────────
 
+    public function initToolbar()
+    {
+        parent::initToolbar();
+        if ($this->display === 'edit') {
+            unset($this->toolbar_btn['save']);
+        }
+    }
+
     public function renderForm(): string
     {
         /** @var CustomCatalogTarif|null $obj */
@@ -372,7 +380,10 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         $html = parent::renderForm();
 
         if ($isEdit) {
-            $html .= $this->renderEditor($obj);
+            $html = '<details class="tarif-header-details"' . ($this->errors ? ' open' : '') . '>'
+                . '<summary>' . $this->l('Tarif client — modifier le nom, le client ou le logo') . '</summary>'
+                . $html . '</details>'
+                . $this->renderEditor($obj);
         }
 
         return $html;
@@ -554,7 +565,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         try {
             $idTarif = (int) Tools::getValue('id_tarif');
             $idLine = (int) Tools::getValue('id_line');
-            $mode = Tools::getValue('mode') === 'price' ? 'price' : 'reduction';
+            $mode = (string) Tools::getValue('mode', 'reduction');
             $value = $this->parseFloat((string) Tools::getValue('value'));
             $result = $this->service->updateLine($idTarif, $idLine, $mode, $value);
             $this->ajaxRender(json_encode(['success' => true, 'line' => $result]));
@@ -587,7 +598,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             $idTarif = (int) Tools::getValue('id_tarif');
             $idSection = (int) Tools::getValue('id_section');
             $value = $this->parseFloat((string) Tools::getValue('value'));
-            $lines = $this->service->applySectionReduction($idTarif, $idSection, $value);
+            $lines = $this->service->applySectionReduction($idTarif, $idSection, $value, (string) Tools::getValue('mode', 'reduction'));
             $this->ajaxRender(json_encode(['success' => true, 'lines' => $lines]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
@@ -722,6 +733,11 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     private function parseFloat(string $value): float
     {
-        return (float) str_replace([' ', ','], ['', '.'], trim($value));
+        $normalized = str_replace([' ', ','], ['', '.'], trim($value));
+        if (!is_numeric($normalized) || !is_finite((float) $normalized)) {
+            throw new RuntimeException($this->l('Saisissez une valeur numérique valide.'));
+        }
+
+        return (float) $normalized;
     }
 }

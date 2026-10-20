@@ -63,3 +63,8 @@ const template = fs.readFileSync(path.join(__dirname, '../views/templates/admin/
 assert.match(template, /\{if \$line.is_processed\}checked\{\/if\}/);
 assert.match(source, /line.is_processed \? ' checked' : ''/);
 console.log('PASS: saved and newly rendered rows reflect their persisted processed status.');
+
+const css = fs.readFileSync(path.join(__dirname, '../views/css/admin-tarif.css'), 'utf8');
+assert.match(css, /\.tarif-lines > \.tarif-line:has\(\.tarif-processed:checked\)\s*\{\s*background: #e3f3e7;/);
+assert(css.indexOf('.tarif-line:has(.tarif-processed:checked)') > css.indexOf('.tarif-line:hover'));
+console.log('PASS: checked rows use a green background, overriding alternating and hover backgrounds; unchecking or failed saves restore the appropriate state.');

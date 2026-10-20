@@ -1,3 +1,20 @@
+.tarif-header-details {
+  margin-bottom: 20px;
+}
+
+.tarif-header-details > summary {
+  cursor: pointer;
+  padding: 12px 15px;
+  border: 1px solid #e0e6ed;
+  border-radius: 4px;
+  background: #f4f6f9;
+  font-weight: bold;
+}
+
+.tarif-header-details[open] > summary {
+  margin-bottom: 10px;
+}
+
 .customcatalog-tarif-editor .tarif-toolbar {
   margin-bottom: 10px;
 }
@@ -121,6 +138,7 @@
 
 .customcatalog-tarif-editor .tarif-section-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -134,8 +152,12 @@
   max-width: 400px;
 }
 
-.customcatalog-tarif-editor .tarif-section-reduction {
+.customcatalog-tarif-editor .tarif-section-reduction,
+.customcatalog-tarif-editor .tarif-section-additional {
   width: 200px;
+}
+
+.customcatalog-tarif-editor .tarif-section-reduction {
   margin-left: auto;
 }
 
@@ -159,10 +181,15 @@
 }
 
 /* Grille des lignes */
+.customcatalog-tarif-editor #tarif-sections {
+  overflow-x: auto;
+}
+
 .customcatalog-tarif-editor .tarif-lines-head,
 .customcatalog-tarif-editor .tarif-line {
   display: grid;
-  grid-template-columns: 26px 54px minmax(160px, 1fr) 100px 100px 110px 130px 40px 50px;
+  grid-template-columns: 26px 54px 200px minmax(110px, 1fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(240px, 2fr) 40px 50px;
+  min-width: 1360px;
   align-items: center;
   column-gap: 6px;
   padding: 4px 10px;
@@ -189,6 +216,10 @@
   background: #eef3f8;
 }
 
+.customcatalog-tarif-editor .tarif-lines > .tarif-line:has(.tarif-processed:checked) {
+  background: #e3f3e7;
+}
+
 .customcatalog-tarif-editor .tarif-cell {
   min-width: 0;
 }
@@ -209,6 +240,11 @@
 .customcatalog-tarif-editor .tarif-lines-head .tarif-col-info,
 .customcatalog-tarif-editor .tarif-col-info {
   text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.customcatalog-tarif-editor .tarif-lines-head .tarif-col-num {
+  white-space: normal;
 }
 
 .customcatalog-tarif-editor .tarif-col-actions {
@@ -328,6 +364,23 @@
 
 .customcatalog-tarif-editor .tarif-final-group .input-group-addon {
   padding: 4px 8px;
+}
+
+.customcatalog-tarif-editor .tarif-price-label {
+  display: block;
+  font-size: 11px;
+  color: #5b6b7f;
+}
+
+.customcatalog-tarif-editor .tarif-net-label {
+  margin-top: 5px;
+}
+
+.customcatalog-tarif-editor .tarif-prices .tarif-final,
+.customcatalog-tarif-editor .tarif-total-reduction {
+  display: block;
+  font-weight: bold;
+  color: #217346;
 }
 
 .customcatalog-tarif-editor .tarif-line-placeholder {

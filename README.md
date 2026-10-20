@@ -31,6 +31,7 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - gestion de **tarifs clients** : documents de tarification rattachés à un client ;
 - organisation des produits en sections titrées, avec glisser-déposer ;
 - réduction en pourcentage par ligne appliquée au prix actuel du client ;
+- remise supplémentaire successive, par ligne ou par section, avec prix intermédiaire, prix net et remise totale calculée ;
 - duplication d'un tarif vers un autre client ;
 - logo et nom personnalisés par tarif ;
 - export du tarif client en PDF, Excel et CSV (infos produit + prix final uniquement) ;
@@ -123,11 +124,13 @@ Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarific
 2. Enregistrer : l'éditeur de contenu s'affiche sous le formulaire.
 3. Rechercher un produit (nom, référence, EAN ou marque), éventuellement filtrer par **Marque**, choisir une section cible puis **Ajouter**. Le select exclut les produits et déclinaisons déjà présents dans le tarif. Pour un produit à déclinaisons, il propose chaque déclinaison restante individuellement **et** une entrée globale « Déclinaisons restantes » qui les ajoute toutes d'un coup dans la section.
 4. Pour un ajout en masse, cliquer sur **Réf. en masse** : une fenêtre propose une section cible et une zone de texte où l'on colle une référence (produit ou déclinaison) par ligne. Toutes les références reconnues sont ajoutées dans la section choisie ; les références introuvables et celles déjà présentes dans le tarif sont listées.
-5. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer. Chaque en-tête de section dispose d'un champ **réduction %** avec bouton **Appliquer** qui, après confirmation, écrase la réduction client de toutes les lignes de la section.
+5. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer. Chaque en-tête propose **Théorique %** et **Supplémentaire %**, avec leurs boutons **Appliquer** : après confirmation, seule la remise choisie est remplacée sur les lignes de la section.
 
 Le bouton **Replier / Déplier** dans chaque en-tête masque ou affiche les produits de la section, y compris **Sans section** et les sections nouvellement créées. L'en-tête reste visible et les lignes restent dans le tarif : leur ordre, leurs prix et les exports ne changent pas. Les sections sont dépliées au chargement de la page.
 
 La colonne **Traité** permet de cocher ou décocher chaque ligne pour suivre sa vérification, même si sa réduction reste à 0 %. La coche est enregistrée immédiatement dans le tarif et conservée au rechargement. Elle est indépendante des prix, des réductions, de la validation et des exports. Les nouvelles lignes sont non traitées ; lors d'une duplication vers un autre client, les coches sont réinitialisées pour permettre une nouvelle vérification. Une erreur d'enregistrement est signalée et la case reprend son état précédent.
+
+À l'édition d'un tarif existant, le bloc **Tarif client** (nom, client, logo) est replié par défaut et le bouton **Enregistrer** de la barre d'outils supérieure est retiré. Déplier le bloc permet de modifier ces informations et d'utiliser son bouton d'enregistrement interne. Le bloc reste ouvert en cas d'erreur de formulaire. À la création, le formulaire et son enregistrement restent visibles.
 
 La version **1.3.9** ajoute la colonne de suivi `is_processed`. Sur une installation existante, lancer la **mise à jour du module** dans le gestionnaire de modules avant d'utiliser cette version ; les lignes existantes démarrent non traitées.
 
@@ -141,9 +144,21 @@ Les filtres **Marque** du select et de la modal proposent **Sans marque** pour r
 
 Sur une fiche de déclinaison disponible dans la modal, **Ajouter toutes les déclinaisons restantes** ajoute le produit déclinable entier dans la section choisie sur cette fiche. Les déclinaisons déjà présentes sont ignorées et restent dans leur section actuelle. Toutes les fiches du produit deviennent ensuite grisées et non ajoutables, sans fermer la modal ; le bouton **Ajouter** conserve l'ajout individuel.
 
-Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix catalogue HT**, la **remise de groupe** du client (non modifiable, pour information), un champ de **réduction client en pourcentage** et le **prix final HT**. La réduction client et le prix final sont liés en direct : saisir l'un recalcule l'autre instantanément (réduction et prix final sont exprimés par rapport au prix catalogue, arrondis à 2 décimales). Une flèche **→** à droite de la remise de groupe permet de la réappliquer en un clic à la réduction client. Une pastille indique l'origine de la réduction affichée : **Remise groupe** (le pourcentage correspond à la remise du groupe), **Remise client** (le pourcentage est verrouillé sur le client via un prix spécifique) ou **Remise perso** (valeur négociée qui n'est encore ni sur le client ni issue du groupe, en attente de validation).
+Chaque ligne affiche l'image, le nom, la référence, l'EAN, le **prix catalogue HT**, la **remise de groupe** du client (non modifiable, pour information), la **remise théorique %** client/groupe, une **remise supplémentaire %** et une **remise totale %** calculée en lecture seule.
 
-Le bouton **Rafraîchir les prix** réactualise le prix catalogue, la remise de groupe et le prix actuel de chaque ligne selon les tarifs en vigueur (la réduction client est conservée, le prix final suit).
+Les deux remises sont **successives**, jamais additionnées : pour un prix catalogue de 100 €, une remise théorique de 20 % donne 80 €, puis une remise supplémentaire de 10 % donne **72 €**, soit **28 %** de remise totale. Les montants sont arrondis au centime à chaque étape ; le pourcentage total affiché correspond au prix net par rapport au prix catalogue. La remise supplémentaire est comprise entre 0 et 100 % et vaut 0 sur les anciennes et nouvelles lignes par défaut.
+
+La colonne **Prix final HT** distingue **« Après remise théorique »** (intermédiaire) et **« Net après les deux remises »** (prix final éditable). La saisie du prix net **recalcule toujours la première remise et conserve la deuxième** : avec une remise supplémentaire de 10 %, saisir 63 € donne 70 € avant cette deuxième remise, soit une première remise de 30 % sur un catalogue à 100 €. Avec une deuxième remise de 100 %, seul un prix net nul est possible. Les deux champs de remise sont éditables séparément ; la remise totale n'a pas de saisie directe.
+
+Une flèche **→** à droite de la remise de groupe permet de la réappliquer en un clic à la première remise, sans effacer la remise supplémentaire. Une pastille indique l'origine de la première remise affichée : **Remise groupe**, **Remise client** ou **Remise perso**.
+
+Chaque section, y compris **Sans section** et les sections ajoutées sans recharger la page, propose deux actions distinctes **Théorique %** et **Supplémentaire %**. Chaque action remplace uniquement la remise correspondante sur les lignes de cette section et conserve l'autre. Le rafraîchissement et la duplication conservent les deux pourcentages. La synchronisation qui préserve les prix nets conserve aussi la remise supplémentaire et ajuste uniquement la première remise.
+
+Les validations client/groupe appliquent la remise globale issue du prix net après les deux remises. Les exports PDF, Excel et CSV continuent de présenter uniquement le prix net final, sans exposer les remises internes.
+
+La mise à jour du module vers **1.6.0** ajoute la seconde remise à zéro sans modifier les prix ni les premières remises des tarifs existants.
+
+Le bouton **Rafraîchir les prix** réactualise le prix catalogue, la remise de groupe et le prix actuel de chaque ligne selon les tarifs en vigueur (les deux remises saisies sont conservées, le prix net final est recalculé).
 
 ### Détection des changements de prix
 
@@ -264,6 +279,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`upgrade/upgrade-1.3.1.php`](upgrade/upgrade-1.3.1.php) | Ajout de la colonne de remise de groupe aux lignes de tarif. |
 | [`upgrade/upgrade-1.4.0.php`](upgrade/upgrade-1.4.0.php) | Ajout du tarif source optionnel aux profils de catalogue. |
 | [`upgrade/upgrade-1.5.0.php`](upgrade/upgrade-1.5.0.php) | Création de l'historique des validations et reprise des dates de validation connues. |
+| [`upgrade/upgrade-1.6.0.php`](upgrade/upgrade-1.6.0.php) | Ajout de la remise supplémentaire, initialisée à zéro sans modification des prix existants. |
 
 ## Désinstallation
 

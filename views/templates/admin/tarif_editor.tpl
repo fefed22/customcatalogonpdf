@@ -185,22 +185,22 @@
                      class="form-control tarif-section-title"
                      value="{$section.title|escape:'htmlall':'UTF-8'}"
                      placeholder="{l s='Titre de la section' mod='customcatalogonpdf'}">
+              <button type="button" class="btn btn-xs btn-danger tarif-delete-section"
+                      title="{l s='Supprimer la section' mod='customcatalogonpdf'}">
+                <i class="icon-trash"></i>
+              </button>
               <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
-                <input type="text" class="form-control tarif-section-reduction-input" placeholder="%">
+                <input type="text" class="form-control tarif-section-reduction-input" placeholder="{l s='Théorique %' mod='customcatalogonpdf'}" aria-label="{l s='Remise théorique de section' mod='customcatalogonpdf'}">
                 <span class="input-group-btn">
                   <button type="button" class="btn btn-default tarif-apply-section-reduction">
                     <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
                   </button>
                 </span>
               </div>
-              <button type="button" class="btn btn-xs btn-danger tarif-delete-section"
-                      title="{l s='Supprimer la section' mod='customcatalogonpdf'}">
-                <i class="icon-trash"></i>
-              </button>
             {else}
               <span class="tarif-section-none-label">{l s='Sans section' mod='customcatalogonpdf'}</span>
               <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
-                <input type="text" class="form-control tarif-section-reduction-input" placeholder="%">
+                <input type="text" class="form-control tarif-section-reduction-input" placeholder="{l s='Théorique %' mod='customcatalogonpdf'}" aria-label="{l s='Remise théorique de section' mod='customcatalogonpdf'}">
                 <span class="input-group-btn">
                   <button type="button" class="btn btn-default tarif-apply-section-reduction">
                     <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
@@ -208,6 +208,16 @@
                 </span>
               </div>
             {/if}
+            <div class="tarif-section-additional input-group">
+              <input type="text" class="form-control tarif-section-additional-input"
+                     placeholder="{l s='Supplémentaire %' mod='customcatalogonpdf'}"
+                     aria-label="{l s='Remise supplémentaire de section' mod='customcatalogonpdf'}">
+              <span class="input-group-btn">
+                <button type="button" class="btn btn-default tarif-apply-section-additional">
+                  <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
+                </button>
+              </span>
+            </div>
           </div>
 
           <div class="tarif-lines-head" id="tarif-section-head-{$section.id_section|intval}">
@@ -216,7 +226,9 @@
             <span class="tarif-cell tarif-col-info">{l s='Produit' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-num">{l s='Prix catalogue' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-num">{l s='Remise groupe' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Réduction client %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Remise théorique %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Remise suppl. %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num">{l s='Remise totale %' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-num">{l s='Prix final HT' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-actions"></span>
             <span class="tarif-cell tarif-col-processed">{l s='Traité' mod='customcatalogonpdf'}</span>
@@ -253,11 +265,20 @@
                   {if $line.group_reduction_percent > 0}<button type="button" class="tarif-apply-group" title="{l s='Réappliquer la remise de groupe à la réduction client' mod='customcatalogonpdf'}"><i class="icon-arrow-right"></i></button>{/if}
                 </span>
                 <span class="tarif-cell tarif-col-num">
-                  <input type="text" class="form-control tarif-reduction" value="{$line.reduction_percent|string_format:"%.2f"}">
+                  <input type="text" class="form-control tarif-reduction" aria-label="{l s='Remise théorique en pourcentage' mod='customcatalogonpdf'}" value="{$line.reduction_percent|string_format:"%.4f"}">
                 </span>
                 <span class="tarif-cell tarif-col-num">
+                  <input type="text" class="form-control tarif-additional-reduction" aria-label="{l s='Remise supplémentaire en pourcentage' mod='customcatalogonpdf'}" value="{$line.additional_reduction_percent|string_format:"%.4f"}">
+                </span>
+                <span class="tarif-cell tarif-col-num">
+                  <output class="tarif-total-reduction" title="{l s='Pourcentage global calculé, non modifiable' mod='customcatalogonpdf'}">{$line.total_reduction_percent|string_format:"%.2f"} %</output>
+                </span>
+                <span class="tarif-cell tarif-col-num tarif-prices">
+                  <span class="tarif-price-label">{l s='Après remise théorique' mod='customcatalogonpdf'}</span>
+                  <span class="tarif-intermediate">{$line.intermediate_price|string_format:"%.2f"} &euro;</span>
+                  <span class="tarif-price-label tarif-net-label">{l s='Net après les deux remises' mod='customcatalogonpdf'}</span>
                   <div class="input-group tarif-final-group">
-                    <input type="text" class="form-control tarif-final" value="{$line.final_price|string_format:"%.2f"}">
+                    <input type="text" class="form-control tarif-final" aria-label="{l s='Prix net final, modifie la première remise' mod='customcatalogonpdf'}" value="{$line.final_price|string_format:"%.2f"}">
                     <span class="input-group-addon">&euro;</span>
                   </div>
                 </span>

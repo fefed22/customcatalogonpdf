@@ -162,9 +162,16 @@
             : '')
         + '</span>'
         + '<span class="tarif-cell tarif-col-num"><input type="text" class="form-control tarif-reduction" value="'
-        + fmt(line.reduction_percent) + '"></span>'
-        + '<span class="tarif-cell tarif-col-num"><div class="input-group tarif-final-group">'
-        + '<input type="text" class="form-control tarif-final" value="' + fmt(line.final_price) + '">'
+        + (parseFloat(line.reduction_percent) || 0).toFixed(4) + '" aria-label="Remise théorique en pourcentage"></span>'
+        + '<span class="tarif-cell tarif-col-num"><input type="text" class="form-control tarif-additional-reduction" value="'
+        + (parseFloat(line.additional_reduction_percent) || 0).toFixed(4) + '" aria-label="Remise supplémentaire en pourcentage"></span>'
+        + '<span class="tarif-cell tarif-col-num"><output class="tarif-total-reduction" title="Pourcentage global calculé, non modifiable">'
+        + fmt(line.total_reduction_percent) + ' %</output></span>'
+        + '<span class="tarif-cell tarif-col-num tarif-prices"><span class="tarif-price-label">Après remise théorique</span>'
+        + '<span class="tarif-intermediate">' + fmt(line.intermediate_price) + ' &euro;</span>'
+        + '<span class="tarif-price-label tarif-net-label">Net après les deux remises</span>'
+        + '<div class="input-group tarif-final-group">'
+        + '<input type="text" class="form-control tarif-final" aria-label="Prix net final, modifie la première remise" value="' + fmt(line.final_price) + '">'
         + '<span class="input-group-addon">&euro;</span></div></span>'
         + '<span class="tarif-cell tarif-col-actions"><button type="button" class="btn btn-xs btn-danger tarif-delete-line">'
         + '<i class="icon-trash"></i></button></span>'
@@ -184,13 +191,23 @@
         + '<span class="tarif-drag-section"><i class="icon-arrows"></i></span>'
         + '<input type="text" class="form-control tarif-section-title" value="' + escapeHtml(section.title) + '" placeholder="Titre de la section">'
         + '<button type="button" class="btn btn-xs btn-danger tarif-delete-section"><i class="icon-trash"></i></button>'
+        + '<div class="tarif-section-reduction input-group">'
+        + '<input type="text" class="form-control tarif-section-reduction-input" placeholder="Théorique %" aria-label="Remise théorique de section">'
+        + '<span class="input-group-btn"><button type="button" class="btn btn-default tarif-apply-section-reduction">'
+        + '<i class="icon-magic"></i> Appliquer</button></span></div>'
+        + '<div class="tarif-section-additional input-group">'
+        + '<input type="text" class="form-control tarif-section-additional-input" placeholder="Supplémentaire %" aria-label="Remise supplémentaire de section">'
+        + '<span class="input-group-btn"><button type="button" class="btn btn-default tarif-apply-section-additional">'
+        + '<i class="icon-magic"></i> Appliquer</button></span></div>'
         + '</div>'
         + '<div class="tarif-lines-head" id="tarif-section-head-' + id + '">'
         + '<span class="tarif-cell tarif-col-drag"></span><span class="tarif-cell tarif-col-img">Image</span>'
         + '<span class="tarif-cell tarif-col-info">Produit</span>'
         + '<span class="tarif-cell tarif-col-num">Prix catalogue</span>'
         + '<span class="tarif-cell tarif-col-num">Remise groupe</span>'
-        + '<span class="tarif-cell tarif-col-num">Réduction client %</span>'
+        + '<span class="tarif-cell tarif-col-num">Remise théorique %</span>'
+        + '<span class="tarif-cell tarif-col-num">Remise suppl. %</span>'
+        + '<span class="tarif-cell tarif-col-num">Remise totale %</span>'
         + '<span class="tarif-cell tarif-col-num">Prix final HT</span>'
         + '<span class="tarif-cell tarif-col-actions"></span>'
         + '<span class="tarif-cell tarif-col-processed">Traité</span>'
@@ -470,12 +487,21 @@
       return parseFloat($row.attr('data-base-price')) || 0;
     }
 
-    // Saisie réduction -> met à jour le prix final en direct
-    $('#tarif-sections').on('input', '.tarif-reduction', function () {
-      var $row = $(this).closest('.tarif-line');
+    function updatePricePreview($row, intermediate) {
       var base = getBase($row);
-      var pct = parseNum($(this).val());
-      $row.find('.tarif-final').val((base * (1 - pct / 100)).toFixed(2));
+      var reduction = parseNum($row.find('.tarif-reduction').val());
+      var additional = parseNum($row.find('.tarif-additional-reduction').val());
+      var first = intermediate === undefined ? Math.round((base * (1 - reduction / 100) + Number.EPSILON) * 100) / 100 : intermediate;
+      var net = Math.round((first * (1 - additional / 100) + Number.EPSILON) * 100) / 100;
+      if (intermediate === undefined) {
+        $row.find('.tarif-final').val(net.toFixed(2));
+      }
+      $row.find('.tarif-intermediate').text(first.toFixed(2) + ' €');
+      $row.find('.tarif-total-reduction').text((base > 0 ? (1 - net / base) * 100 : 0).toFixed(2) + ' %');
+    }
+
+    $('#tarif-sections').on('input', '.tarif-reduction, .tarif-additional-reduction', function () {
+      updatePricePreview($(this).closest('.tarif-line'));
     });
 
     // Saisie prix final -> met à jour la réduction en direct
@@ -483,18 +509,26 @@
       var $row = $(this).closest('.tarif-line');
       var base = getBase($row);
       var price = parseNum($(this).val());
-      var pct = base > 0 ? ((base - price) / base) * 100 : 0;
-      $row.find('.tarif-reduction').val(pct.toFixed(2));
+      var additional = parseNum($row.find('.tarif-additional-reduction').val());
+      if (additional < 100) {
+        var intermediate = Math.round((price / (1 - additional / 100) + Number.EPSILON) * 100) / 100;
+        var pct = base > 0 ? ((base - intermediate) / base) * 100 : 0;
+        $row.find('.tarif-reduction').val(pct.toFixed(4));
+        updatePricePreview($row, intermediate);
+      }
     });
 
     // Validation (blur) -> sauvegarde côté serveur
     $('#tarif-sections').on('change', '.tarif-reduction', function () {
       var $row = $(this).closest('.tarif-line');
-      saveLine($row, 'reduction', parseNum($(this).val()));
+      saveLine($row, 'reduction', $(this).val());
     });
     $('#tarif-sections').on('change', '.tarif-final', function () {
       var $row = $(this).closest('.tarif-line');
-      saveLine($row, 'price', parseNum($(this).val()));
+      saveLine($row, 'price', $(this).val());
+    });
+    $('#tarif-sections').on('change', '.tarif-additional-reduction', function () {
+      saveLine($(this).closest('.tarif-line'), 'additional_reduction', $(this).val());
     });
 
     function saveLine($row, mode, value) {
@@ -509,8 +543,11 @@
       if (!$row.length) {
         return;
       }
-      $row.find('.tarif-reduction').val(fmt(line.reduction_percent));
+      $row.find('.tarif-reduction').val((parseFloat(line.reduction_percent) || 0).toFixed(4));
+      $row.find('.tarif-additional-reduction').val((parseFloat(line.additional_reduction_percent) || 0).toFixed(4));
       $row.find('.tarif-final').val(fmt(line.final_price));
+      $row.find('.tarif-intermediate').text(fmt(line.intermediate_price) + ' €');
+      $row.find('.tarif-total-reduction').text(fmt(line.total_reduction_percent) + ' %');
       updateSourceBadge($row, line.reduction_source);
     }
 
@@ -518,29 +555,38 @@
     $('#tarif-sections').on('click', '.tarif-apply-group', function () {
       var $row = $(this).closest('.tarif-line');
       var rg = parseFloat($row.attr('data-group-reduction')) || 0;
-      var base = getBase($row);
-      $row.find('.tarif-reduction').val(rg.toFixed(2));
-      $row.find('.tarif-final').val((base * (1 - rg / 100)).toFixed(2));
+      $row.find('.tarif-reduction').val(rg.toFixed(4));
+      updatePricePreview($row);
       saveLine($row, 'reduction', rg);
     });
 
     // ── Réduction appliquée à toute une section ──────────────────────────────
-    $('#tarif-sections').on('click', '.tarif-apply-section-reduction', function () {
+    $('#tarif-sections').on('click', '.tarif-apply-section-reduction, .tarif-apply-section-additional', function () {
+      var additional = $(this).hasClass('tarif-apply-section-additional');
       var $section = $(this).closest('.tarif-section');
       var idSection = parseInt($section.data('id-section'), 10);
-      var $input = $section.find('.tarif-section-reduction-input');
-      var pct = parseNum($input.val());
+      var $input = $section.find(additional ? '.tarif-section-additional-input' : '.tarif-section-reduction-input');
+      var raw = String($input.val()).replace(/\s/g, '').replace(',', '.');
+      var pct = Number(raw);
+      if (raw === '' || !Number.isFinite(pct) || pct > 100 || (additional && pct < 0)) {
+        window.alert('Saisissez une remise valide ; la remise supplémentaire doit être comprise entre 0 et 100 %.');
+        return;
+      }
       var count = $section.find('.tarif-line').length;
 
       if (!count) {
         window.alert('Aucun produit dans cette section.');
         return;
       }
-      if (!window.confirm('Appliquer une réduction de ' + pct.toFixed(2) + ' % à ' + count + ' produit(s) de cette section ?\n\nLes réductions client existantes de ces lignes seront écrasées.')) {
+      if (!window.confirm('Appliquer une remise ' + (additional ? 'supplémentaire' : 'théorique') + ' de '
+        + pct.toFixed(2) + ' % à ' + count + ' produit(s) de cette section ?\n\n'
+        + 'Seule cette remise sera remplacée ; l’autre remise sera conservée.')) {
         return;
       }
 
-      api('ApplySectionReduction', { id_section: idSection, value: pct }, function (resp) {
+      api('ApplySectionReduction', {
+        id_section: idSection, value: pct, mode: additional ? 'additional_reduction' : 'reduction'
+      }, function (resp) {
         $.each(resp.lines || [], function (i, line) {
           applyLineResult(line);
         });
