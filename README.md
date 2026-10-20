@@ -34,7 +34,7 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - duplication d'un tarif vers un autre client ;
 - logo et nom personnalisés par tarif ;
 - export du tarif client en PDF, Excel et CSV (infos produit + prix final uniquement) ;
-- validation d'un tarif verrouillant les prix sous forme de prix spécifiques PrestaShop.
+- validation d'un tarif sur le client ou son groupe par défaut, avec deux confirmations et un historique complet.
 
 ## Exemple de nom de fichier
 
@@ -147,7 +147,7 @@ Le bouton **Rafraîchir les prix** réactualise le prix catalogue, la remise de 
 
 ### Détection des changements de prix
 
-À l'ouverture d'un tarif, le module compare le prix catalogue et la remise de groupe enregistrés avec les valeurs actuelles. En cas d'écart, une pastille **« Prix modifiés »** s'affiche sur les lignes concernées (avec le détail au survol) et une bannière propose **« Mettre à jour en conservant les prix finaux »**. Cette mise à jour réactualise le prix catalogue et la remise de groupe, recalcule la réduction client de façon à **préserver le prix final**, et — si le tarif est validé — **adapte le prix spécifique du client** pour qu'il continue de payer ce même prix final malgré le changement de tarif catalogue.
+À l'ouverture d'un tarif, le module compare le prix catalogue et la remise de groupe enregistrés avec les valeurs actuelles. En cas d'écart, une pastille **« Prix modifiés »** s'affiche sur les lignes concernées (avec le détail au survol) et une bannière propose **« Mettre à jour en conservant les prix finaux »**. Cette mise à jour réactualise le prix catalogue et la remise de groupe, recalcule la réduction client de façon à **préserver le prix final**, et — si le tarif a été validé sur ce client — **adapte son prix spécifique existant**. Une validation sur le groupe seul ne provoque aucune écriture sur les prix spécifiques du client. Les prix du groupe ne sont pas réécrits par cette synchronisation : il faut les appliquer avec une nouvelle double validation.
 
 ### Dupliquer
 
@@ -159,7 +159,18 @@ Les boutons **PDF**, **Excel** et **CSV** produisent le document du tarif. Confo
 
 ### Valider
 
-Le bouton **Valider** verrouille les prix du tarif sous forme de **prix spécifiques** PrestaShop pour le client, après une confirmation. Pour chaque ligne, un pourcentage de réduction est calculé par rapport au prix de base catalogue afin d'atteindre le prix final (arrondi à 2 décimales). Seules les règles propres au client sont créées ou écrasées — les **remises de groupe ne sont jamais modifiées**. Si le prix final correspond au prix de groupe du client (pas de dérogation), aucune règle client n'est créée et toute règle client antérieure est retirée, le client conservant simplement sa remise de groupe. Le tarif reste modifiable : une nouvelle validation réécrit les prix spécifiques.
+Deux boutons sont proposés dans l'éditeur :
+
+- **Valider le tarif sur le client** : applique les prix spécifiques uniquement au client enregistré sur le tarif.
+- **Valider le tarif sur le groupe** : applique les prix spécifiques au **groupe de clients par défaut** de ce client. Le nom et l'identifiant du groupe sont affichés avant validation. Cette action concerne tous les clients de ce groupe ; leurs prix spécifiques individuels ne sont pas supprimés.
+
+Chaque action impose **deux confirmations successives** : la première indique la cible et le remplacement des anciennes remises ; la seconde reprend la cible vérifiée par le serveur et le nombre de lignes. Un changement des lignes ou de la cible entre les confirmations oblige à recommencer. Un tarif vide ou sans client valide ne peut pas être validé. Depuis la liste des tarifs, l'action **Valider** ouvre cette zone de l'éditeur : elle ne modifie jamais les prix directement.
+
+Pour chaque ligne, la remise est calculée par rapport au prix catalogue, avec un pourcentage arrondi à deux décimales, comme pour la validation client existante. Les anciens prix spécifiques manuels hors panier sont remplacés **pour la cible choisie et les couples produit/déclinaison présents dans le tarif uniquement**. Les produits absents, les autres déclinaisons, les autres clients/groupes, les règles de prix catalogue et les prix propres à un panier sont conservés. Les règles générales et les priorités natives de PrestaShop restent applicables. En mode client, si le prix final correspond déjà au prix du groupe, l'ancienne dérogation client est retirée sans en créer une autre.
+
+Les prix, le statut et l'historique sont enregistrés dans une même transaction : une erreur annule l'ensemble de la validation. Chaque validation réussie ajoute une entrée d'historique indiquant **la date et l'heure, la cible client/groupe (nom et ID au moment de l'action), l'employé et le nombre de lignes**. L'historique complet est visible dans l'éditeur ; la liste indique la dernière cible et la dernière date de validation. Une nouvelle validation n'efface pas les précédentes.
+
+La version **1.5.0** ajoute la table d'historique lors de la mise à jour du module. Les anciennes validations conservent leur dernière date connue et sont signalées comme **« cible non historisée »** : les cibles et les validations plus anciennes ne peuvent pas être reconstituées.
 
 ## Modes tarifaires
 
@@ -252,6 +263,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`upgrade/upgrade-1.3.0.php`](upgrade/upgrade-1.3.0.php) | Création des tables de tarifs clients et de l'onglet dédié. |
 | [`upgrade/upgrade-1.3.1.php`](upgrade/upgrade-1.3.1.php) | Ajout de la colonne de remise de groupe aux lignes de tarif. |
 | [`upgrade/upgrade-1.4.0.php`](upgrade/upgrade-1.4.0.php) | Ajout du tarif source optionnel aux profils de catalogue. |
+| [`upgrade/upgrade-1.5.0.php`](upgrade/upgrade-1.5.0.php) | Création de l'historique des validations et reprise des dates de validation connues. |
 
 ## Désinstallation
 

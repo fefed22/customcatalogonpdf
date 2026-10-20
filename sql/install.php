@@ -33,6 +33,20 @@ return [
         KEY `id_customer` (`id_customer`)
     ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;',
 
+    'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_validation` (
+        `id_validation`   INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+        `id_tarif`        INT(10) UNSIGNED NOT NULL,
+        `target_type`     VARCHAR(16) NOT NULL,
+        `id_target`       INT(10) UNSIGNED NOT NULL DEFAULT 0,
+        `target_name`     VARCHAR(255) NOT NULL DEFAULT \'\',
+        `id_employee`     INT(10) UNSIGNED NOT NULL DEFAULT 0,
+        `employee_name`   VARCHAR(255) NOT NULL DEFAULT \'\',
+        `line_count`      INT(10) UNSIGNED NOT NULL DEFAULT 0,
+        `date_add`        DATETIME NOT NULL,
+        PRIMARY KEY (`id_validation`),
+        KEY `tarif_history` (`id_tarif`, `id_validation`)
+    ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;',
+
     'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_section` (
         `id_section`      INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
         `id_tarif`        INT(10) UNSIGNED NOT NULL,

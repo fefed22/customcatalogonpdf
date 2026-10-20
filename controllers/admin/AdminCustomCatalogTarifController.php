@@ -36,10 +36,19 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
         $this->_select = '
             CONCAT(c.firstname, " ", c.lastname) AS customer_name,
+            v.target_type AS validation_target_type,
+            v.id_target AS validation_target_id,
+            v.target_name AS validation_target_name,
             (SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line` l
                 WHERE l.id_tarif = a.id_tarif) AS nb_lines';
         $this->_join = '
-            LEFT JOIN `' . _DB_PREFIX_ . 'customer` c ON c.id_customer = a.id_customer';
+            LEFT JOIN `' . _DB_PREFIX_ . 'customer` c ON c.id_customer = a.id_customer
+            LEFT JOIN `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_validation` v
+                ON v.id_validation = (
+                    SELECT MAX(vlast.id_validation)
+                    FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_validation` vlast
+                    WHERE vlast.id_tarif = a.id_tarif
+                )';
 
         $this->fields_list = [
             'id_tarif' => [
@@ -68,6 +77,10 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
                 'search' => false,
                 'callback' => 'renderStatusBadge',
             ],
+            'date_validated' => [
+                'title' => $this->l('Dernière validation'),
+                'type' => 'datetime',
+            ],
             'date_upd' => [
                 'title' => $this->l('Mise à jour'),
                 'type' => 'datetime',
@@ -85,9 +98,18 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     public function renderStatusBadge($value, $row): string
     {
-        return (int) $value === CustomCatalogTarif::STATUS_VALIDATED
-            ? '<span class="badge badge-success">' . $this->l('Validé') . '</span>'
-            : '<span class="badge badge-default">' . $this->l('Brouillon') . '</span>';
+        if ((int) $value !== CustomCatalogTarif::STATUS_VALIDATED) {
+            return '<span class="badge badge-default">' . $this->l('Brouillon') . '</span>';
+        }
+        $type = $row['validation_target_type'] ?? 'legacy';
+        $label = $type === 'group' ? $this->l('Validé sur le groupe') : $this->l('Validé sur le client');
+        if ($type === 'legacy') {
+            $label = $this->l('Validation antérieure — cible non historisée');
+        } else {
+            $label .= ' : ' . $row['validation_target_name'] . ' (#' . (int) $row['validation_target_id'] . ')';
+        }
+
+        return '<span class="badge badge-success">' . Tools::safeOutput($label) . '</span>';
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -151,9 +173,8 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     public function postProcess()
     {
-        // Validation du tarif (depuis la liste ou l'éditeur)
         if (Tools::getValue('validatetarif') && ($idTarif = (int) Tools::getValue('id_tarif'))) {
-            $this->processValidateTarif($idTarif);
+            $this->errors[] = $this->l('Ouvrez le tarif et utilisez les deux confirmations pour le valider.');
             return true;
         }
 
@@ -188,16 +209,10 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         return $result;
     }
 
-    private function processValidateTarif(int $idTarif): void
+    private function checkValidationRequest(): void
     {
-        try {
-            $count = $this->service->validate($idTarif);
-            $this->confirmations[] = sprintf(
-                $this->l('Tarif validé : %d prix spécifique(s) enregistré(s) pour le client.'),
-                $count
-            );
-        } catch (Throwable $e) {
-            $this->errors[] = $e->getMessage();
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !$this->checkToken() || !$this->access('edit')) {
+            throw new RuntimeException($this->l('Validation non autorisée.'));
         }
     }
 
@@ -294,11 +309,10 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
 
     public function displayValidatetarifLink($token, int $id, $name = null): string
     {
-        $url = self::$currentIndex . '&token=' . $this->token . '&id_tarif=' . $id . '&validatetarif=1';
-        $confirm = $this->l('Valider ce tarif et verrouiller les prix spécifiques du client ?');
+        $url = self::$currentIndex . '&token=' . $this->token . '&id_tarif=' . $id
+            . '&updatecustomcatalogonpdf_tarif=1#tarif-validation';
 
-        return '<a class="btn btn-default btn-xs" href="' . $url . '" title="' . $this->l('Valider') . '"'
-            . ' onclick="return confirm(\'' . addslashes($confirm) . '\');">'
+        return '<a class="btn btn-default btn-xs" href="' . Tools::safeOutput($url) . '" title="' . $this->l('Valider') . '">'
             . '<i class="icon-lock"></i>&nbsp;' . $this->l('Valider') . '</a>';
     }
 
@@ -405,6 +419,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         $tpl->assign([
             'tarif' => [
                 'id_tarif' => (int) $tarif->id,
+                'id_customer' => (int) $tarif->id_customer,
                 'name' => $tarif->name,
                 'status' => (int) $tarif->status,
                 'is_validated' => $tarif->isValidated(),
@@ -414,13 +429,14 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             'product_manufacturers' => $this->service->getProductManufacturers(),
             'customer' => $data['customer'] ?? null,
             'has_changes' => !empty($data['has_changes']),
+            'validation_targets' => $this->service->getValidationTargets((int) $tarif->id),
+            'validation_history' => $this->service->getValidationHistory((int) $tarif->id),
             'ajax_url' => $ajaxUrl,
             'product_search_url' => $ajaxUrl . '&ajax=1&action=SearchProducts',
             'customer_search_url' => $ajaxUrl . '&ajax=1&action=SearchCustomers',
             'pdf_url' => $ajaxUrl . '&id_tarif=' . (int) $tarif->id . '&tarifpdf=1',
             'xlsx_url' => $ajaxUrl . '&id_tarif=' . (int) $tarif->id . '&tarifxlsx=1',
             'csv_url' => $ajaxUrl . '&id_tarif=' . (int) $tarif->id . '&tarifcsv=1',
-            'validate_url' => $ajaxUrl . '&id_tarif=' . (int) $tarif->id . '&validatetarif=1',
             'form_action' => $ajaxUrl . '&id_tarif=' . (int) $tarif->id,
         ]);
 
@@ -430,6 +446,43 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
     // ─────────────────────────────────────────────────────────────────────────
     // AJAX
     // ─────────────────────────────────────────────────────────────────────────
+
+    public function ajaxProcessPrepareTarifValidation(): void
+    {
+        try {
+            $this->checkValidationRequest();
+            $prepared = $this->service->prepareValidation(
+                (int) Tools::getValue('id_tarif'),
+                (string) Tools::getValue('validation_target')
+            );
+            if ($prepared['id_target'] !== (int) Tools::getValue('id_target')) {
+                throw new RuntimeException($this->l('La cible a changé. Rechargez le tarif avant de le valider.'));
+            }
+            unset($prepared['lines']);
+            $this->ajaxRender(json_encode(array_merge(['success' => true], $prepared)));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessValidateTarif(): void
+    {
+        try {
+            $this->checkValidationRequest();
+            if ((string) Tools::getValue('confirmed') !== '1') {
+                throw new RuntimeException($this->l('La seconde confirmation est requise.'));
+            }
+            $count = $this->service->validate(
+                (int) Tools::getValue('id_tarif'),
+                (string) Tools::getValue('validation_target'),
+                (int) Tools::getValue('id_target'),
+                (string) Tools::getValue('confirmation_token')
+            );
+            $this->ajaxRender(json_encode(['success' => true, 'count' => $count]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
 
     public function ajaxProcessSearchCustomers(): void
     {

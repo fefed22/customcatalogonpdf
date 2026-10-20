@@ -1267,7 +1267,14 @@ class TarifService
         }
 
         $idCustomer = (int) $tarif->id_customer;
-        $adaptSpecificPrices = $tarif->isValidated() && $idCustomer > 0;
+        $adaptSpecificPrices = false;
+        foreach ($this->getValidationHistory($idTarif) as $validation) {
+            if (($validation['target_type'] === 'customer' && (int) $validation['id_target'] === $idCustomer)
+                || $validation['target_type'] === 'legacy') {
+                $adaptSpecificPrices = $tarif->isValidated() && $idCustomer > 0;
+                break;
+            }
+        }
 
         $lines = Db::getInstance()->executeS('
             SELECT *
@@ -1300,7 +1307,7 @@ class TarifService
 
             // Adapter le prix spécifique client existant pour préserver le prix final
             if ($adaptSpecificPrices && $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer)) {
-                $this->applyCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer, $newCatalog, $finalPrice);
+                $this->replaceSpecificPrice($idProduct, $idProductAttribute, $idCustomer, 0, $newCatalog, $finalPrice);
             }
 
             $updated++;
@@ -1319,32 +1326,41 @@ class TarifService
     }
 
     /**
-     * Écrase le prix spécifique propre au client pour atteindre le prix final
-     * voulu (pourcentage par rapport au prix catalogue, arrondi à 2 décimales).
-     * Les remises de groupe ne sont jamais touchées.
+     * Remplace les règles manuelles de cette cible et de cette déclinaison uniquement.
      */
-    private function applyCustomerSpecificPrice(
+    private function replaceSpecificPrice(
         int $idProduct,
         int $idProductAttribute,
         int $idCustomer,
+        int $idGroup,
         float $catalogPrice,
-        float $finalPrice
-    ): void {
-        Db::getInstance()->delete('specific_price',
+        float $finalPrice,
+        bool $inheritGroupPrice = false
+    ): bool {
+        if (!is_finite($finalPrice) || $finalPrice < 0 || !is_finite($catalogPrice) || $catalogPrice < 0) {
+            throw new RuntimeException($this->module->l('Prix invalide dans le tarif.'));
+        }
+        if ($catalogPrice <= 0 && $finalPrice > 0) {
+            throw new RuntimeException($this->module->l('Un prix catalogue nul ne permet pas de calculer cette remise.'));
+        }
+        $db = Db::getInstance();
+        if (!$db->delete('specific_price',
             'id_product = ' . $idProduct
             . ' AND id_product_attribute = ' . $idProductAttribute
             . ' AND id_customer = ' . $idCustomer
-            . ' AND id_group = 0'
-            . ' AND id_specific_price_rule = 0'
-        );
+            . ($idCustomer > 0 ? '' : ' AND id_group = ' . $idGroup)
+            . ' AND id_cart = 0 AND id_specific_price_rule = 0'
+        )) {
+            throw new RuntimeException($this->module->l('Impossible de remplacer les anciens prix spécifiques.'));
+        }
 
-        if ($catalogPrice <= 0) {
-            return;
+        if ($inheritGroupPrice || $catalogPrice <= 0) {
+            return false;
         }
 
         $reductionPercent = round((($catalogPrice - $finalPrice) / $catalogPrice) * 100, 2);
 
-        Db::getInstance()->insert('specific_price', [
+        if (!$db->insert('specific_price', [
             'id_specific_price_rule' => 0,
             'id_cart' => 0,
             'id_product' => $idProduct,
@@ -1352,7 +1368,7 @@ class TarifService
             'id_shop_group' => 0,
             'id_currency' => 0,
             'id_country' => 0,
-            'id_group' => 0,
+            'id_group' => $idGroup,
             'id_customer' => $idCustomer,
             'id_product_attribute' => $idProductAttribute,
             'price' => -1,
@@ -1362,7 +1378,11 @@ class TarifService
             'reduction_type' => 'percentage',
             'from' => '0000-00-00 00:00:00',
             'to' => '0000-00-00 00:00:00',
-        ]);
+        ])) {
+            throw new RuntimeException($this->module->l('Impossible d’enregistrer les nouveaux prix spécifiques.'));
+        }
+
+        return true;
     }
 
     public function duplicate(int $idTarif, int $idCustomer): int
@@ -1434,95 +1454,165 @@ class TarifService
     // Validation → prix spécifiques
     // ─────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Verrouille les prix du tarif sous forme de prix spécifiques client.
-     *
-     * Pour chaque ligne, calcule le pourcentage de réduction (par rapport au
-     * prix de base catalogue) permettant d'atteindre le prix final, arrondi à
-     * 2 décimales, puis écrase toute règle propre au client sur ce produit.
-     * Les remises de groupe ne sont jamais modifiées ; si le prix final
-     * correspond au prix de groupe du client, aucune règle client n'est créée
-     * (le client conserve simplement sa remise de groupe).
-     *
-     * @return int Nombre de prix spécifiques créés
-     */
-    public function validate(int $idTarif): int
+    public function getValidationHistory(int $idTarif): array
     {
-        $tarif = new CustomCatalogTarif($idTarif);
-        if (!Validate::isLoadedObject($tarif)) {
+        $rows = Db::getInstance()->executeS('
+            SELECT *
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_validation`
+            WHERE id_tarif = ' . $idTarif . '
+            ORDER BY id_validation DESC', true, false);
+        if ($rows === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger l’historique des validations.'));
+        }
+
+        return $rows;
+    }
+
+    public function getValidationTargets(int $idTarif): array
+    {
+        $rows = Db::getInstance()->executeS('
+            SELECT t.id_tarif, c.id_customer, c.firstname, c.lastname,
+                   g.id_group, gl.name AS group_name
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif` t
+            LEFT JOIN `' . _DB_PREFIX_ . 'customer` c
+                ON c.id_customer = t.id_customer AND c.deleted = 0
+            LEFT JOIN `' . _DB_PREFIX_ . 'group` g ON g.id_group = c.id_default_group
+            LEFT JOIN `' . _DB_PREFIX_ . 'group_lang` gl
+                ON gl.id_group = g.id_group AND gl.id_lang = ' . (int) $this->context->language->id . '
+            WHERE t.id_tarif = ' . $idTarif, true, false);
+        if ($rows === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger la cible de validation.'));
+        }
+        if (!$rows) {
             throw new RuntimeException($this->module->l('Tarif introuvable.'));
         }
-        $idCustomer = (int) $tarif->id_customer;
-        if ($idCustomer <= 0) {
-            throw new RuntimeException($this->module->l('Sélectionnez un client avant de valider le tarif.'));
+        $row = $rows[0];
+        if (!(int) $row['id_customer']) {
+            return [];
+        }
+        $targets = [
+            'customer' => [
+                'id' => (int) $row['id_customer'],
+                'name' => trim($row['firstname'] . ' ' . $row['lastname']),
+            ],
+        ];
+        if ((int) $row['id_group'] > 0) {
+            $targets['group'] = ['id' => (int) $row['id_group'], 'name' => (string) $row['group_name']];
         }
 
-        $idGroup = $this->getCustomerDefaultGroup($idCustomer);
+        return $targets;
+    }
 
-        $lines = Db::getInstance()->executeS('
-            SELECT id_product, id_product_attribute, final_price
+    public function prepareValidation(int $idTarif, string $target, bool $lockLines = false): array
+    {
+        if (!in_array($target, ['customer', 'group'], true)) {
+            throw new RuntimeException($this->module->l('Cible de validation invalide.'));
+        }
+        $targets = $this->getValidationTargets($idTarif);
+        if (!isset($targets[$target])) {
+            throw new RuntimeException($this->module->l('Client ou groupe par défaut introuvable. Enregistrez un client valide avant de continuer.'));
+        }
+        $db = Db::getInstance();
+        $lines = $db->executeS('
+            SELECT id_line, id_product, id_product_attribute, final_price
             FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
-            WHERE id_tarif = ' . (int) $idTarif) ?: [];
-
-        $count = 0;
-        foreach ($lines as $line) {
-            $idProduct = (int) $line['id_product'];
-            $idProductAttribute = (int) $line['id_product_attribute'];
-            $finalPrice = (float) $line['final_price'];
-            $basePrice = $this->getBasePrice($idProduct, $idProductAttribute);
-            $groupPrice = $this->getGroupPrice($idProduct, $idProductAttribute, $idGroup);
-
-            // Écraser toute règle propre au client (jamais les remises de groupe)
-            Db::getInstance()->delete('specific_price',
-                'id_product = ' . $idProduct
-                . ' AND id_product_attribute = ' . $idProductAttribute
-                . ' AND id_customer = ' . $idCustomer
-                . ' AND id_group = 0'
-                . ' AND id_specific_price_rule = 0'
-            );
-
-            if ($basePrice <= 0) {
-                continue;
-            }
-
-            // Pas de dérogation : le prix final correspond au prix de groupe
-            if (abs($finalPrice - $groupPrice) < 0.005) {
-                continue;
-            }
-
-            // Pourcentage de réduction par rapport au prix de base (arrondi 2 décimales)
-            $reductionPercent = round((($basePrice - $finalPrice) / $basePrice) * 100, 2);
-
-            Db::getInstance()->insert('specific_price', [
-                'id_specific_price_rule' => 0,
-                'id_cart' => 0,
-                'id_product' => $idProduct,
-                'id_shop' => 0,
-                'id_shop_group' => 0,
-                'id_currency' => 0,
-                'id_country' => 0,
-                'id_group' => 0,
-                'id_customer' => $idCustomer,
-                'id_product_attribute' => $idProductAttribute,
-                'price' => -1,
-                'from_quantity' => 1,
-                'reduction' => $reductionPercent / 100,
-                'reduction_tax' => 0,
-                'reduction_type' => 'percentage',
-                'from' => '0000-00-00 00:00:00',
-                'to' => '0000-00-00 00:00:00',
-            ]);
-            $count++;
+            WHERE id_tarif = ' . $idTarif . ' ORDER BY id_line' . ($lockLines ? ' FOR UPDATE' : ''), true, false);
+        if ($lines === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les lignes du tarif.'));
         }
-
-        if (method_exists('SpecificPrice', 'flushCache')) {
-            SpecificPrice::flushCache();
+        if (!$lines) {
+            throw new RuntimeException($this->module->l('Impossible de valider un tarif vide.'));
         }
-        Product::flushPriceCache();
+        $history = $this->getValidationHistory($idTarif);
+        $snapshot = [
+            $idTarif, $target, $targets, $lines, (int) $this->context->employee->id,
+            $history[0]['id_validation'] ?? 0,
+        ];
 
-        $tarif->status = CustomCatalogTarif::STATUS_VALIDATED;
-        $tarif->date_validated = date('Y-m-d H:i:s');
-        $tarif->update();
+        return [
+            'id_target' => $targets[$target]['id'],
+            'id_group' => $targets['group']['id'] ?? 0,
+            'target_name' => $targets[$target]['name'],
+            'line_count' => count($lines),
+            'confirmation_token' => hash_hmac('sha256', json_encode($snapshot, JSON_THROW_ON_ERROR), _COOKIE_KEY_),
+            'lines' => $lines,
+        ];
+    }
+
+    /**
+     * Le jeton lie la seconde confirmation aux lignes, à la cible et à l'employé.
+     */
+    public function validate(int $idTarif, string $target, int $idTarget, string $confirmationToken): int
+    {
+        $db = Db::getInstance();
+        if (!$db->execute('START TRANSACTION')) {
+            throw new RuntimeException($this->module->l('Impossible de démarrer la validation.'));
+        }
+        try {
+            $lockedTarif = $db->executeS('SELECT id_tarif, id_customer FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif`
+                WHERE id_tarif = ' . $idTarif . ' FOR UPDATE', true, false);
+            if (!$lockedTarif) {
+                throw new RuntimeException($this->module->l('Tarif introuvable.'));
+            }
+            if ($db->executeS('SELECT id_customer FROM `' . _DB_PREFIX_ . 'customer`
+                WHERE id_customer = ' . (int) $lockedTarif[0]['id_customer'] . ' FOR UPDATE', true, false) === false) {
+                throw new RuntimeException($this->module->l('Impossible de vérifier le client du tarif.'));
+            }
+            $prepared = $this->prepareValidation($idTarif, $target, true);
+            if ($idTarget !== $prepared['id_target']
+                || !hash_equals($prepared['confirmation_token'], $confirmationToken)) {
+                throw new RuntimeException($this->module->l('Le tarif ou sa cible a changé. Rechargez la page et recommencez les deux confirmations.'));
+            }
+            $tarif = new CustomCatalogTarif($idTarif);
+            $idCustomer = $target === 'customer' ? $idTarget : 0;
+            $idGroup = $prepared['id_group'];
+            $count = 0;
+            foreach ($prepared['lines'] as $line) {
+                $idProduct = (int) $line['id_product'];
+                $idAttribute = (int) $line['id_product_attribute'];
+                $finalPrice = (float) $line['final_price'];
+                $basePrice = $this->getBasePrice($idProduct, $idAttribute);
+                $skip = $target === 'customer'
+                    && abs($finalPrice - $this->getGroupPrice($idProduct, $idAttribute, $idGroup)) < 0.005;
+                if ($this->replaceSpecificPrice(
+                    $idProduct, $idAttribute, $idCustomer, $target === 'group' ? $idGroup : 0,
+                    $basePrice, $finalPrice, $skip
+                )) {
+                    $count++;
+                }
+            }
+            $date = date('Y-m-d H:i:s');
+            if (!$db->insert('customcatalogonpdf_tarif_validation', [
+                'id_tarif' => $idTarif,
+                'target_type' => pSQL($target),
+                'id_target' => $idTarget,
+                'target_name' => pSQL($prepared['target_name']),
+                'id_employee' => (int) $this->context->employee->id,
+                'employee_name' => pSQL(trim($this->context->employee->firstname . ' ' . $this->context->employee->lastname)),
+                'line_count' => $prepared['line_count'],
+                'date_add' => $date,
+            ])) {
+                throw new RuntimeException($this->module->l('Impossible d’enregistrer l’historique de validation.'));
+            }
+            $tarif->status = CustomCatalogTarif::STATUS_VALIDATED;
+            $tarif->date_validated = $date;
+            if (!$tarif->update()) {
+                throw new RuntimeException($this->module->l('Impossible d’enregistrer le statut du tarif.'));
+            }
+            if (!$db->execute('COMMIT')) {
+                throw new RuntimeException($this->module->l('Impossible de finaliser la validation.'));
+            }
+        } catch (Throwable $e) {
+            if (!$db->execute('ROLLBACK')) {
+                throw new RuntimeException($this->module->l('Échec de l’annulation de la validation. Vérifiez les prix enregistrés.'), 0, $e);
+            }
+            throw $e;
+        } finally {
+            if (method_exists('SpecificPrice', 'flushCache')) {
+                SpecificPrice::flushCache();
+            }
+            Product::flushPriceCache();
+        }
 
         return $count;
     }

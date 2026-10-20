@@ -662,7 +662,7 @@
 
     // ── Synchroniser (conserver les prix finaux) ─────────────────────────────
     $('#tarif-sync-prices').on('click', function () {
-      if (!window.confirm('Mettre à jour les prix catalogue et remises de groupe en conservant les prix finaux ?\n\nLa réduction client sera recalculée et, si le tarif est validé, le prix spécifique du client sera adapté pour préserver le prix final.')) {
+      if (!window.confirm('Mettre à jour les prix catalogue et remises de groupe en conservant les prix finaux ?\n\nLa réduction sera recalculée. Les prix spécifiques déjà validés sur ce client seront adaptés ; les prix validés sur le groupe ne seront pas modifiés sans une nouvelle double validation.')) {
         return;
       }
       api('SyncPrices', {}, function () {
@@ -670,11 +670,58 @@
       });
     });
 
-    // ── Confirmation de la validation ────────────────────────────────────────
-    $('#tarif-validate').on('click', function (e) {
-      if (!window.confirm('Valider ce tarif et verrouiller les prix spécifiques du client ?\n\nLes prix spécifiques existants propres au client seront écrasés. Les remises de groupe ne sont pas modifiées.')) {
-        e.preventDefault();
+    $('.tarif-validate').on('click', function () {
+      var $button = $(this);
+      var target = $button.data('target');
+      var idTarget = parseInt($button.data('id-target'), 10);
+      var label = (target === 'group' ? 'Groupe de clients par défaut : ' : 'Client : ')
+        + $button.data('target-name') + ' (#' + idTarget + ')';
+      if (parseInt($('#tarif_id_customer').val(), 10) !== parseInt($('#tarif-validation').data('id-customer'), 10)) {
+        window.alert('Enregistrez le changement de client et rechargez le tarif avant de le valider.');
+        return;
       }
+      if (!window.confirm('Première confirmation : valider le tarif sur cette cible ?\n\n' + label
+        + (target === 'group' ? '\n\nAttention : cette action concerne tous les clients de ce groupe.' : '')
+        + '\n\nLes anciennes remises des lignes du tarif seront remplacées pour cette cible uniquement.')) {
+        return;
+      }
+      var $buttons = $('.tarif-validate:not(:disabled)');
+      $buttons.prop('disabled', true);
+      var committing = false;
+      api('PrepareTarifValidation', { validation_target: target, id_target: idTarget }, function (prepared) {
+        if (!prepared || prepared.success !== true || !prepared.confirmation_token
+          || parseInt(prepared.id_target, 10) !== idTarget || !(prepared.line_count > 0)) {
+          window.alert('La préparation de la validation a échoué. Rechargez le tarif et recommencez.');
+          return;
+        }
+        var confirmedLabel = (target === 'group' ? 'Groupe de clients par défaut : ' : 'Client : ')
+          + prepared.target_name + ' (#' + prepared.id_target + ')';
+        if (!window.confirm('Seconde confirmation — application définitive\n\n' + confirmedLabel
+          + '\nLignes concernées : ' + prepared.line_count
+          + '\n\nConfirmez-vous le remplacement des anciens prix spécifiques pour ces produits et déclinaisons ?'
+          + '\nCette validation sera inscrite dans l’historique.')) {
+          return;
+        }
+        committing = true;
+        api('ValidateTarif', {
+          validation_target: target,
+          id_target: prepared.id_target,
+          confirmation_token: prepared.confirmation_token,
+          confirmed: 1
+        }, function (result) {
+          if (!result || result.success !== true) {
+            window.alert('La validation n’a pas été confirmée par le serveur. Vérifiez l’historique avant de réessayer.');
+            return;
+          }
+          window.location.reload();
+        }).always(function () {
+          $buttons.prop('disabled', false);
+        });
+      }).always(function () {
+        if (!committing) {
+          $buttons.prop('disabled', false);
+        }
+      });
     });
   });
 })(jQuery);

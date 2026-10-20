@@ -76,10 +76,79 @@
           <a class="btn btn-default" href="{$csv_url|escape:'htmlall':'UTF-8'}">
             <i class="icon-file-text-o"></i> CSV
           </a>
-          <a class="btn btn-success" id="tarif-validate" href="{$validate_url|escape:'htmlall':'UTF-8'}">
-            <i class="icon-lock"></i> {l s='Valider' mod='customcatalogonpdf'}
-          </a>
         </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <div id="tarif-validation" data-id-customer="{$tarif.id_customer|intval}">
+      <h3><i class="icon-lock"></i> {l s='Validation du tarif' mod='customcatalogonpdf'}</h3>
+      <p class="alert alert-warning">
+        {l s='Action sensible : deux confirmations sont obligatoires. Les nouveaux prix spécifiques remplacent les anciens uniquement pour les produits et déclinaisons de ce tarif et la cible choisie.' mod='customcatalogonpdf'}
+        {l s='Les règles de prix catalogue et les prix propres aux autres cibles sont conservés.' mod='customcatalogonpdf'}
+      </p>
+      {if isset($validation_targets.customer)}
+        <p>
+          <strong>{l s='Client' mod='customcatalogonpdf'} :</strong>
+          {$validation_targets.customer.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.customer.id|intval})
+        </p>
+      {/if}
+      {if isset($validation_targets.group)}
+        <p>
+          <strong>{l s='Groupe de clients par défaut' mod='customcatalogonpdf'} :</strong>
+          {$validation_targets.group.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.group.id|intval}).
+          {l s='La validation groupe concerne tous les clients de ce groupe. Leurs prix spécifiques individuels restent prioritaires.' mod='customcatalogonpdf'}
+        </p>
+      {/if}
+      <button type="button" class="btn btn-success tarif-validate"
+              data-target="customer"
+              data-id-target="{if isset($validation_targets.customer)}{$validation_targets.customer.id|intval}{else}0{/if}"
+              data-target-name="{if isset($validation_targets.customer)}{$validation_targets.customer.name|escape:'htmlall':'UTF-8'}{/if}"
+              {if !isset($validation_targets.customer)}disabled{/if}>
+        <i class="icon-user"></i> {l s='Valider le tarif sur le client' mod='customcatalogonpdf'}
+      </button>
+      <button type="button" class="btn btn-warning tarif-validate"
+              data-target="group"
+              data-id-target="{if isset($validation_targets.group)}{$validation_targets.group.id|intval}{else}0{/if}"
+              data-target-name="{if isset($validation_targets.group)}{$validation_targets.group.name|escape:'htmlall':'UTF-8'}{/if}"
+              {if !isset($validation_targets.group)}disabled{/if}>
+        <i class="icon-group"></i> {l s='Valider le tarif sur le groupe' mod='customcatalogonpdf'}
+      </button>
+      {if !isset($validation_targets.customer)}
+        <p class="help-block">{l s='Enregistrez un client valide pour activer la validation.' mod='customcatalogonpdf'}</p>
+      {/if}
+      <h4>{l s='Historique des validations' mod='customcatalogonpdf'}</h4>
+      <div class="table-responsive">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{l s='Date' mod='customcatalogonpdf'}</th>
+              <th>{l s='Cible' mod='customcatalogonpdf'}</th>
+              <th>{l s='Validé par' mod='customcatalogonpdf'}</th>
+              <th>{l s='Lignes' mod='customcatalogonpdf'}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {foreach from=$validation_history item=validation}
+              <tr>
+                <td>{$validation.date_add|escape:'htmlall':'UTF-8'}</td>
+                <td>
+                  {if $validation.target_type == 'legacy'}
+                    {l s='Validation antérieure — cible non historisée' mod='customcatalogonpdf'}
+                  {else}
+                    {if $validation.target_type == 'group'}{l s='Groupe' mod='customcatalogonpdf'}{else}{l s='Client' mod='customcatalogonpdf'}{/if}
+                    : {$validation.target_name|escape:'htmlall':'UTF-8'} (#{$validation.id_target|intval})
+                  {/if}
+                </td>
+                <td>{if $validation.id_employee > 0}{$validation.employee_name|escape:'htmlall':'UTF-8'} (#{$validation.id_employee|intval}){else}—{/if}</td>
+                <td>{if $validation.target_type == 'legacy'}—{else}{$validation.line_count|intval}{/if}</td>
+              </tr>
+            {foreachelse}
+              <tr><td colspan="4">{l s='Aucune validation.' mod='customcatalogonpdf'}</td></tr>
+            {/foreach}
+          </tbody>
+        </table>
       </div>
     </div>
 
