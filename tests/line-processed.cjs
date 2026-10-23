@@ -55,6 +55,7 @@ const renderContext = vm.createContext({
   escapeHtml: value => value || '',
   fmt: value => String(value || 0),
   renderBadges: () => '',
+  fmtOptional: value => value == null ? '' : String(value),
 });
 vm.runInContext(source.slice(renderStart, source.indexOf('    function renderSectionBlock(', renderStart)), renderContext);
 assert.match(renderContext.renderLineRow({ id_line: 1, is_processed: true }), /class="tarif-processed"[^>]* checked/);

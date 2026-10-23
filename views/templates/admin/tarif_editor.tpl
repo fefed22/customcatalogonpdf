@@ -77,6 +77,12 @@
             <i class="icon-file-text-o"></i> CSV
           </a>
         </div>
+        <div class="checkbox tarif-public-toggle">
+          <label for="tarif-show-public-price">
+            <input type="checkbox" id="tarif-show-public-price" {if $show_public_price}checked{/if}>
+            {l s='Afficher le prix public conseillé dans les exports (PDF, Excel, CSV)' mod='customcatalogonpdf'}
+          </label>
+        </div>
       </div>
     </div>
 
@@ -221,22 +227,28 @@
           </div>
 
           <div class="tarif-lines-head" id="tarif-section-head-{$section.id_section|intval}">
+            <span class="tarif-head-group tarif-hg-catalog">{l s='Catalogue' mod='customcatalogonpdf'}</span>
+            <span class="tarif-head-group tarif-hg-discount">{l s='Remises client' mod='customcatalogonpdf'}</span>
+            <span class="tarif-head-group tarif-hg-net">{l s='Prix net client' mod='customcatalogonpdf'}</span>
+            <span class="tarif-head-group tarif-hg-public" title="{l s='Prix partagé : identique dans tous les tarifs contenant ce produit' mod='customcatalogonpdf'}">{l s='Prix public conseillé' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-drag"></span>
             <span class="tarif-cell tarif-col-img">{l s='Image' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-info">{l s='Produit' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Prix catalogue' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Remise groupe' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Remise théorique %' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Remise suppl. %' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Remise totale %' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-num">{l s='Prix final HT' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start">{l s='Prix catalogue HT' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-catalog">{l s='Remise groupe' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-discount tarif-zone-start">{l s='Remise théorique %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-discount">{l s='Remise suppl. %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-discount">{l s='Remise totale %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-net tarif-zone-start">{l s='Prix net HT' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-public tarif-zone-start">{l s='Majoration %' mod='customcatalogonpdf'}</span>
+            <span class="tarif-cell tarif-col-num tarif-zone-public">{l s='PVC HT' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-actions"></span>
             <span class="tarif-cell tarif-col-processed">{l s='Traité' mod='customcatalogonpdf'}</span>
           </div>
 
           <div class="tarif-lines" id="tarif-section-lines-{$section.id_section|intval}" data-id-section="{$section.id_section|intval}">
             {foreach from=$section.lines item=line}
-              <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-base-price="{$line.base_price|string_format:"%.6f"}" data-group-reduction="{$line.group_reduction_percent|string_format:"%.4f"}">
+              <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-public-price="{if $line.public_price !== null}{$line.public_price|string_format:"%.2f"}{/if}" data-base-price="{$line.base_price|string_format:"%.6f"}" data-group-reduction="{$line.group_reduction_percent|string_format:"%.4f"}">
                 <span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
                 <span class="tarif-cell tarif-col-img">
                   {if $line.image_url}
@@ -259,26 +271,42 @@
                     {if $line.has_changes}<span class="tarif-badge tarif-badge-changed" title="{l s='Catalogue' mod='customcatalogonpdf'} : {$line.base_price|string_format:"%.2f"} &rarr; {$line.live_base_price|string_format:"%.2f"} &euro; | {l s='Remise groupe' mod='customcatalogonpdf'} : {$line.group_reduction_percent|string_format:"%.2f"} &rarr; {$line.live_group_reduction_percent|string_format:"%.2f"} %">{l s='Prix modifiés' mod='customcatalogonpdf'}</span>{/if}
                   </span>
                 </span>
-                <span class="tarif-cell tarif-col-num tarif-catalog">{$line.base_price|string_format:"%.2f"} &euro;</span>
-                <span class="tarif-cell tarif-col-num tarif-group">
+                <span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start tarif-catalog">{$line.base_price|string_format:"%.2f"} &euro;</span>
+                <span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-group">
                   <span class="tarif-group-value">{$line.group_reduction_percent|string_format:"%.2f"} %</span>
                   {if $line.group_reduction_percent > 0}<button type="button" class="tarif-apply-group" title="{l s='Réappliquer la remise de groupe à la réduction client' mod='customcatalogonpdf'}"><i class="icon-arrow-right"></i></button>{/if}
                 </span>
-                <span class="tarif-cell tarif-col-num">
+                <span class="tarif-cell tarif-col-num tarif-zone-discount tarif-zone-start">
                   <input type="text" class="form-control tarif-reduction" aria-label="{l s='Remise théorique en pourcentage' mod='customcatalogonpdf'}" value="{$line.reduction_percent|string_format:"%.4f"}">
                 </span>
-                <span class="tarif-cell tarif-col-num">
+                <span class="tarif-cell tarif-col-num tarif-zone-discount">
                   <input type="text" class="form-control tarif-additional-reduction" aria-label="{l s='Remise supplémentaire en pourcentage' mod='customcatalogonpdf'}" value="{$line.additional_reduction_percent|string_format:"%.4f"}">
                 </span>
-                <span class="tarif-cell tarif-col-num">
+                <span class="tarif-cell tarif-col-num tarif-zone-discount">
                   <output class="tarif-total-reduction" title="{l s='Pourcentage global calculé, non modifiable' mod='customcatalogonpdf'}">{$line.total_reduction_percent|string_format:"%.2f"} %</output>
                 </span>
-                <span class="tarif-cell tarif-col-num tarif-prices">
+                <span class="tarif-cell tarif-col-num tarif-zone-net tarif-zone-start tarif-prices">
                   <span class="tarif-price-label">{l s='Après remise théorique' mod='customcatalogonpdf'}</span>
                   <span class="tarif-intermediate">{$line.intermediate_price|string_format:"%.2f"} &euro;</span>
                   <span class="tarif-price-label tarif-net-label">{l s='Net après les deux remises' mod='customcatalogonpdf'}</span>
                   <div class="input-group tarif-final-group">
                     <input type="text" class="form-control tarif-final" aria-label="{l s='Prix net final, modifie la première remise' mod='customcatalogonpdf'}" value="{$line.final_price|string_format:"%.2f"}">
+                    <span class="input-group-addon">&euro;</span>
+                  </div>
+                </span>
+                <span class="tarif-cell tarif-col-num tarif-zone-public tarif-zone-start">
+                  <div class="input-group">
+                    <input type="text" class="form-control tarif-public-markup" placeholder="—"
+                           aria-label="{l s='Majoration du prix public conseillé, en pourcentage du prix net' mod='customcatalogonpdf'}"
+                           value="{if $line.public_markup_percent !== null}{$line.public_markup_percent|string_format:"%.2f"}{/if}">
+                    <span class="input-group-addon">%</span>
+                  </div>
+                </span>
+                <span class="tarif-cell tarif-col-num tarif-zone-public">
+                  <div class="input-group">
+                    <input type="text" class="form-control tarif-public-price" placeholder="—"
+                           aria-label="{l s='Prix public conseillé HT, partagé par tous les tarifs' mod='customcatalogonpdf'}"
+                           value="{if $line.public_price !== null}{$line.public_price|string_format:"%.2f"}{/if}">
                     <span class="input-group-addon">&euro;</span>
                   </div>
                 </span>

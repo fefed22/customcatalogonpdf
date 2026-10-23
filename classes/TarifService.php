@@ -632,11 +632,10 @@ class TarifService
             WHERE id_tarif = ' . (int) $idTarif . '
             ORDER BY position ASC, id_section ASC') ?: [];
 
-        $lines = Db::getInstance()->executeS('
-            SELECT *
-            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
-            WHERE id_tarif = ' . (int) $idTarif . '
-            ORDER BY position ASC, id_line ASC') ?: [];
+        $lines = Db::getInstance()->executeS(
+            $this->getLineSelectSql() . '
+            WHERE l.id_tarif = ' . (int) $idTarif . '
+            ORDER BY l.position ASC, l.id_line ASC') ?: [];
 
         $linesBySection = [];
         $hasChanges = false;
@@ -672,7 +671,21 @@ class TarifService
             'customer' => $this->getCustomerOption((int) $tarif->id_customer),
             'sections' => $sectionList,
             'has_changes' => $hasChanges,
+            'show_public_price' => (bool) $tarif->show_public_price,
         ];
+    }
+
+    /**
+     * Lignes du tarif enrichies du prix public conseillé, partagé par produit.
+     */
+    private function getLineSelectSql(): string
+    {
+        return '
+            SELECT l.*, pp.public_price
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line` l
+            LEFT JOIN `' . _DB_PREFIX_ . 'customcatalogonpdf_public_price` pp
+                ON pp.id_product = l.id_product
+               AND pp.id_product_attribute = l.id_product_attribute';
     }
 
     /**
@@ -710,6 +723,7 @@ class TarifService
                 || abs($liveGroup - $storedGroup) >= 0.005;
         }
 
+        $publicPrice = isset($line['public_price']) ? (float) $line['public_price'] : null;
         $hasCustomerRule = $this->hasCustomerSpecificPrice($idProduct, $idProductAttribute, $idCustomer);
         $reductionSource = $this->resolveReductionSource(
             $reductionPercent,
@@ -739,6 +753,8 @@ class TarifService
             'intermediate_price' => $discounts['intermediate_price'],
             'total_reduction_percent' => $this->computeReductionFromFinal($storedBase, (float) $line['final_price']),
             'final_price' => (float) $line['final_price'],
+            'public_price' => $publicPrice,
+            'public_markup_percent' => $this->computePublicMarkup((float) $line['final_price'], $publicPrice),
             'has_group_rule' => $storedGroup > 0,
             'has_customer_rule' => $hasCustomerRule,
             'reduction_source' => $reductionSource,
@@ -995,9 +1011,7 @@ class TarifService
         $idLine = (int) Db::getInstance()->Insert_ID();
         $this->touch($tarif);
 
-        $row = Db::getInstance()->getRow('
-            SELECT * FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
-            WHERE id_line = ' . $idLine);
+        $row = Db::getInstance()->getRow($this->getLineSelectSql() . ' WHERE l.id_line = ' . $idLine);
 
         return $this->decorateLine($row, (int) $tarif->id_customer);
     }
@@ -1094,11 +1108,127 @@ class TarifService
             $hasCustomerRule
         );
 
+        $publicPrice = $this->getPublicPrice((int) $line['id_product'], (int) $line['id_product_attribute']);
+
         return array_merge([
             'id_line' => (int) $idLine,
             'reduction_percent' => $reductionPercent,
             'reduction_source' => $reductionSource,
+            'public_price' => $publicPrice,
+            'public_markup_percent' => $this->computePublicMarkup($discounts['final_price'], $publicPrice),
         ], $discounts);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Prix public conseillé (partagé par produit / déclinaison entre les tarifs)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function getPublicPrice(int $idProduct, int $idProductAttribute): ?float
+    {
+        $value = Db::getInstance()->getValue('
+            SELECT public_price FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_public_price`
+            WHERE id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute);
+
+        return $value === false || $value === null ? null : (float) $value;
+    }
+
+    /**
+     * Majoration (%) du prix public conseillé par rapport au prix net client.
+     */
+    private function computePublicMarkup(float $finalPrice, ?float $publicPrice): ?float
+    {
+        if ($publicPrice === null || $finalPrice <= 0) {
+            return null;
+        }
+
+        return round((($publicPrice / $finalPrice) - 1) * 100, 4);
+    }
+
+    /**
+     * Enregistre le prix public conseillé d'une ligne, saisi en prix ou en
+     * majoration (%) du prix net client. Le prix est partagé par tous les
+     * tarifs contenant ce produit / cette déclinaison ; null le supprime.
+     *
+     * @param string $mode 'public_price' ou 'public_markup'
+     */
+    public function updatePublicPrice(int $idTarif, int $idLine, string $mode, ?float $value): array
+    {
+        $line = Db::getInstance()->getRow('
+            SELECT id_line, id_product, id_product_attribute, final_price
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_line = ' . $idLine . ' AND id_tarif = ' . $idTarif);
+        if (!$line) {
+            throw new RuntimeException($this->module->l('Ligne introuvable.'));
+        }
+        if (!in_array($mode, ['public_price', 'public_markup'], true) || ($value !== null && !is_finite($value))) {
+            throw new RuntimeException($this->module->l('Mode ou valeur de prix public invalide.'));
+        }
+
+        $idProduct = (int) $line['id_product'];
+        $idProductAttribute = (int) $line['id_product_attribute'];
+        $finalPrice = (float) $line['final_price'];
+        $publicPrice = null;
+        if ($value !== null) {
+            if ($mode === 'public_markup') {
+                if ($finalPrice <= 0) {
+                    throw new RuntimeException($this->module->l('Un prix net nul ne permet pas de calculer le prix public : saisissez le prix public directement.'));
+                }
+                if ($value <= -100) {
+                    throw new RuntimeException($this->module->l('La majoration doit être supérieure à -100 %.'));
+                }
+                $publicPrice = round($finalPrice * (1 + $value / 100), 2);
+            } else {
+                $publicPrice = round($value, 2);
+            }
+            if ($publicPrice <= 0) {
+                throw new RuntimeException($this->module->l('Le prix public conseillé doit être supérieur à 0.'));
+            }
+        }
+
+        $db = Db::getInstance();
+        $where = 'id_product = ' . $idProduct . ' AND id_product_attribute = ' . $idProductAttribute;
+        if ($publicPrice === null) {
+            $saved = $db->delete('customcatalogonpdf_public_price', $where);
+        } elseif ($this->getPublicPrice($idProduct, $idProductAttribute) !== null) {
+            $saved = $db->update('customcatalogonpdf_public_price', [
+                'public_price' => $publicPrice,
+                'date_upd' => date('Y-m-d H:i:s'),
+            ], $where);
+        } else {
+            $saved = $db->insert('customcatalogonpdf_public_price', [
+                'id_product' => $idProduct,
+                'id_product_attribute' => $idProductAttribute,
+                'public_price' => $publicPrice,
+                'date_upd' => date('Y-m-d H:i:s'),
+            ]);
+        }
+        if (!$saved) {
+            throw new RuntimeException($this->module->l('Impossible d’enregistrer le prix public conseillé.'));
+        }
+        $this->touchById($idTarif);
+
+        return [
+            'id_line' => $idLine,
+            'final_price' => $finalPrice,
+            'public_price' => $publicPrice,
+            'public_markup_percent' => $this->computePublicMarkup($finalPrice, $publicPrice),
+        ];
+    }
+
+    public function setShowPublicPrice(int $idTarif, bool $show): bool
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+        if (!Db::getInstance()->update('customcatalogonpdf_tarif', [
+            'show_public_price' => (int) $show,
+            'date_upd' => date('Y-m-d H:i:s'),
+        ], 'id_tarif = ' . $idTarif)) {
+            throw new RuntimeException($this->module->l('Impossible d’enregistrer l’affichage du prix public.'));
+        }
+
+        return $show;
     }
 
     /**
@@ -1441,6 +1571,7 @@ class TarifService
         $copy->id_customer = $idCustomer;
         $copy->name = $source->name . ' ' . $this->module->l('(copie)');
         $copy->logo = $source->logo;
+        $copy->show_public_price = (bool) $source->show_public_price;
         $copy->status = CustomCatalogTarif::STATUS_DRAFT;
         $copy->date_validated = null;
         $copy->add();
@@ -1683,6 +1814,10 @@ class TarifService
             ['key' => 'ean13', 'label' => $this->module->l('EAN'), 'numeric' => false],
             ['key' => 'final_price', 'label' => $this->module->l('Prix HT'), 'numeric' => true],
         ];
+        $showPublicPrice = !empty($data['show_public_price']);
+        if ($showPublicPrice) {
+            $headers[] = ['key' => 'public_price', 'label' => $this->module->l('Prix public conseillé HT'), 'numeric' => true];
+        }
 
         $rows = [];
         foreach ($data['sections'] as $section) {
@@ -1693,6 +1828,7 @@ class TarifService
                     'reference' => (string) $line['reference'],
                     'ean13' => (string) $line['ean13'],
                     'final_price' => (float) $line['final_price'],
+                    'public_price' => $line['public_price'],
                 ];
             }
         }
@@ -1701,6 +1837,7 @@ class TarifService
             'tarif' => $data['tarif'],
             'headers' => $headers,
             'rows' => $rows,
+            'show_public_price' => $showPublicPrice,
         ];
     }
 
@@ -1733,8 +1870,12 @@ class TarifService
         foreach ($dataset['rows'] as $row) {
             $values = [];
             foreach ($dataset['headers'] as $header) {
-                $value = $row[$header['key']] ?? '';
-                $values[] = $header['numeric'] && $value !== null
+                $value = $row[$header['key']] ?? null;
+                if ($value === null) {
+                    $values[] = '';
+                    continue;
+                }
+                $values[] = $header['numeric']
                     ? number_format((float) $value, 2, ',', '')
                     : $this->escapeSpreadsheetFormula((string) $value);
             }

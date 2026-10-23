@@ -4,7 +4,8 @@
  *
  * Le document reprend le logo et le nom du tarif, le client, la date, puis la
  * liste des produits groupés par section. Conformément aux règles du module,
- * seul le prix final HT est affiché (jamais le prix d'origine ni la réduction).
+ * seul le prix final HT est affiché (jamais le prix d'origine ni la réduction),
+ * éventuellement accompagné du prix public conseillé si le tarif l'active.
  *
  * @author Créa2média
  */
@@ -154,7 +155,7 @@ class TarifPdfGenerator
 
         // Contenu
         $pdf->AddPage();
-        $this->renderSections($pdf, $data['sections']);
+        $this->renderSections($pdf, $data['sections'], !empty($data['show_public_price']));
 
         return $pdf;
     }
@@ -205,7 +206,7 @@ class TarifPdfGenerator
         $pdf->Cell($pageW - 30, 8, $shopInfo['name'], 0, 0, 'L');
     }
 
-    private function renderSections(TarifTCPDF $pdf, array $sections): void
+    private function renderSections(TarifTCPDF $pdf, array $sections, bool $showPublicPrice): void
     {
         foreach ($sections as $section) {
             if (empty($section['lines'])) {
@@ -218,7 +219,7 @@ class TarifPdfGenerator
             }
 
             foreach ($section['lines'] as $line) {
-                $this->drawLine($pdf, $line);
+                $this->drawLine($pdf, $line, $showPublicPrice);
             }
         }
     }
@@ -243,7 +244,7 @@ class TarifPdfGenerator
         $pdf->Ln(3);
     }
 
-    private function drawLine(TarifTCPDF $pdf, array $line): void
+    private function drawLine(TarifTCPDF $pdf, array $line, bool $showPublicPrice): void
     {
         $margin = $pdf->getOriginalMargins();
         $colW = $pdf->getPageWidth() - $margin['left'] - $margin['right'];
@@ -313,6 +314,13 @@ class TarifPdfGenerator
         $pdf->SetFont('helvetica', 'B', 10);
         $pdf->SetTextColor(44, 62, 80);
         $pdf->Cell($priceColW, 6, $this->formatPrice((float) $line['final_price']) . ' HT', 0, 0, 'R');
+
+        if ($showPublicPrice && $line['public_price'] !== null) {
+            $pdf->SetXY($xText + $infoColW, $yStart + 8);
+            $pdf->SetFont('helvetica', '', 8);
+            $pdf->SetTextColor(110, 110, 110);
+            $pdf->Cell($priceColW, 5, 'Prix public conseillé : ' . $this->formatPrice((float) $line['public_price']) . ' HT', 0, 0, 'R');
+        }
 
         $pdf->SetY(max($pdf->GetY(), $yStart + $imgSize + 2));
 

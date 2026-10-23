@@ -180,27 +180,118 @@
   color: #99a8bb;
 }
 
-/* Grille des lignes */
+/* Grille des lignes : zone défilante pour garder les en-têtes de colonnes visibles */
 .customcatalog-tarif-editor #tarif-sections {
-  overflow-x: auto;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .customcatalog-tarif-editor .tarif-lines-head,
 .customcatalog-tarif-editor .tarif-line {
   display: grid;
-  grid-template-columns: 26px 54px 200px minmax(110px, 1fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(240px, 2fr) 40px 50px;
-  min-width: 1360px;
-  align-items: center;
-  column-gap: 6px;
-  padding: 4px 10px;
+  grid-template-columns:
+    26px 54px 220px
+    minmax(95px, 1fr) minmax(95px, 1fr)
+    minmax(105px, 1fr) minmax(105px, 1fr) minmax(90px, 1fr)
+    minmax(200px, 1.6fr)
+    minmax(110px, 1fr) minmax(130px, 1.1fr)
+    40px 50px;
+  min-width: 1560px;
+  align-items: stretch;
 }
 
 .customcatalog-tarif-editor .tarif-lines-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #fff;
   font-size: 11px;
   font-weight: bold;
   color: #6b7a90;
   text-transform: uppercase;
-  border-bottom: 1px solid #eef1f5;
+  border-bottom: 2px solid #d5dde6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.customcatalog-tarif-editor .tarif-lines-head > .tarif-cell {
+  grid-row: 2;
+  padding-top: 4px;
+  padding-bottom: 6px;
+  line-height: 1.25;
+}
+
+.customcatalog-tarif-editor .tarif-head-group {
+  grid-row: 1;
+  padding: 4px 6px;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  border-left: 2px solid transparent;
+}
+
+.customcatalog-tarif-editor .tarif-hg-catalog { grid-column: 4 / 6; }
+.customcatalog-tarif-editor .tarif-hg-discount { grid-column: 6 / 9; }
+.customcatalog-tarif-editor .tarif-hg-net { grid-column: 9 / 10; }
+.customcatalog-tarif-editor .tarif-hg-public { grid-column: 10 / 12; cursor: help; }
+
+/* Zones de colonnes : une couleur par famille de valeurs */
+.customcatalog-tarif-editor .tarif-hg-catalog,
+.customcatalog-tarif-editor .tarif-lines-head .tarif-zone-catalog {
+  background: #eef1f5;
+  color: #5b6b7f;
+  border-left-color: #c5cfdb;
+}
+
+.customcatalog-tarif-editor .tarif-hg-discount,
+.customcatalog-tarif-editor .tarif-lines-head .tarif-zone-discount {
+  background: #e3edf9;
+  color: #2f6fb0;
+  border-left-color: #9fc0e3;
+}
+
+.customcatalog-tarif-editor .tarif-hg-net,
+.customcatalog-tarif-editor .tarif-lines-head .tarif-zone-net {
+  background: #e1f2e6;
+  color: #217346;
+  border-left-color: #8fcaa3;
+}
+
+.customcatalog-tarif-editor .tarif-hg-public,
+.customcatalog-tarif-editor .tarif-lines-head .tarif-zone-public {
+  background: #fcefdc;
+  color: #a5650a;
+  border-left-color: #eabf7f;
+}
+
+.customcatalog-tarif-editor .tarif-line .tarif-zone-catalog { background-color: rgba(197, 207, 219, 0.12); }
+.customcatalog-tarif-editor .tarif-line .tarif-zone-discount { background-color: rgba(159, 192, 227, 0.12); }
+.customcatalog-tarif-editor .tarif-line .tarif-zone-net { background-color: rgba(143, 202, 163, 0.14); }
+.customcatalog-tarif-editor .tarif-line .tarif-zone-public { background-color: rgba(234, 191, 127, 0.14); }
+
+.customcatalog-tarif-editor .tarif-zone-start {
+  border-left: 2px solid transparent;
+}
+
+.customcatalog-tarif-editor .tarif-zone-catalog.tarif-zone-start { border-left-color: #c5cfdb; }
+.customcatalog-tarif-editor .tarif-zone-discount.tarif-zone-start { border-left-color: #9fc0e3; }
+.customcatalog-tarif-editor .tarif-zone-net.tarif-zone-start { border-left-color: #8fcaa3; }
+.customcatalog-tarif-editor .tarif-zone-public.tarif-zone-start { border-left-color: #eabf7f; }
+
+/* Colonnes produit figées lors du défilement horizontal */
+.customcatalog-tarif-editor .tarif-col-drag,
+.customcatalog-tarif-editor .tarif-col-img,
+.customcatalog-tarif-editor .tarif-col-info {
+  position: sticky;
+  z-index: 1;
+  background: inherit;
+}
+
+.customcatalog-tarif-editor .tarif-col-drag { left: 0; }
+.customcatalog-tarif-editor .tarif-col-img { left: 26px; }
+.customcatalog-tarif-editor .tarif-col-info {
+  left: 80px;
+  box-shadow: 4px 0 4px -3px rgba(0, 0, 0, 0.12);
 }
 
 .customcatalog-tarif-editor .tarif-line {
@@ -221,15 +312,30 @@
 }
 
 .customcatalog-tarif-editor .tarif-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-width: 0;
+  padding: 4px 6px;
 }
 
-.customcatalog-tarif-editor .tarif-col-drag {
-  text-align: center;
-}
-
+.customcatalog-tarif-editor .tarif-col-drag,
 .customcatalog-tarif-editor .tarif-col-img {
+  align-items: center;
   text-align: center;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.customcatalog-tarif-editor .tarif-col-actions,
+.customcatalog-tarif-editor .tarif-col-processed {
+  align-items: center;
+}
+
+.customcatalog-tarif-editor .tarif-line .tarif-group {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .customcatalog-tarif-editor .tarif-col-num {
@@ -362,8 +468,25 @@
   height: 30px;
 }
 
-.customcatalog-tarif-editor .tarif-final-group .input-group-addon {
+.customcatalog-tarif-editor .tarif-col-num .input-group {
+  width: 100%;
+}
+
+.customcatalog-tarif-editor .tarif-col-num .input-group-addon {
   padding: 4px 8px;
+}
+
+.customcatalog-tarif-editor .tarif-public-price {
+  font-weight: bold;
+  color: #a5650a;
+}
+
+.customcatalog-tarif-editor .tarif-public-toggle {
+  margin: 4px 0 0;
+}
+
+.customcatalog-tarif-editor .tarif-public-toggle label {
+  display: inline-block;
 }
 
 .customcatalog-tarif-editor .tarif-price-label {

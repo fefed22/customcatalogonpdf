@@ -14,6 +14,10 @@
     return (parseFloat(value) || 0).toFixed(2);
   }
 
+  function fmtOptional(value) {
+    return value == null || value === '' ? '' : (parseFloat(value) || 0).toFixed(2);
+  }
+
   // ── Select2 client (formulaire d'en-tête + duplication) ────────────────────
   function initCustomerSelect($el, placeholder) {
     if (!$el.length || !$.fn.select2) {
@@ -147,32 +151,41 @@
       if (line.ean13) { meta.push('EAN : ' + escapeHtml(line.ean13)); }
 
       return '<div class="tarif-line" data-id-line="' + parseInt(line.id_line, 10)
-        + '" data-base-price="' + (parseFloat(line.base_price) || 0) + '"'
+        + '" data-public-price="' + fmtOptional(line.public_price) + '"'
+        + ' data-base-price="' + (parseFloat(line.base_price) || 0) + '"'
         + ' data-group-reduction="' + (parseFloat(line.group_reduction_percent) || 0) + '">'
         + '<span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>'
         + '<span class="tarif-cell tarif-col-img">' + img + '</span>'
         + '<span class="tarif-cell tarif-col-info"><strong>' + escapeHtml(line.name) + '</strong>' + attrs
         + '<span class="tarif-meta">' + meta.join(' &middot; ') + '</span>'
         + '<span class="tarif-badges">' + renderBadges(line) + '</span></span>'
-        + '<span class="tarif-cell tarif-col-num tarif-catalog">' + fmt(line.base_price) + ' &euro;</span>'
-        + '<span class="tarif-cell tarif-col-num tarif-group"><span class="tarif-group-value">'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start tarif-catalog">' + fmt(line.base_price) + ' &euro;</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-group"><span class="tarif-group-value">'
         + fmt(line.group_reduction_percent) + ' %</span>'
         + ((parseFloat(line.group_reduction_percent) || 0) > 0
             ? '<button type="button" class="tarif-apply-group" title="Réappliquer la remise de groupe à la réduction client"><i class="icon-arrow-right"></i></button>'
             : '')
         + '</span>'
-        + '<span class="tarif-cell tarif-col-num"><input type="text" class="form-control tarif-reduction" value="'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount tarif-zone-start"><input type="text" class="form-control tarif-reduction" value="'
         + (parseFloat(line.reduction_percent) || 0).toFixed(4) + '" aria-label="Remise théorique en pourcentage"></span>'
-        + '<span class="tarif-cell tarif-col-num"><input type="text" class="form-control tarif-additional-reduction" value="'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount"><input type="text" class="form-control tarif-additional-reduction" value="'
         + (parseFloat(line.additional_reduction_percent) || 0).toFixed(4) + '" aria-label="Remise supplémentaire en pourcentage"></span>'
-        + '<span class="tarif-cell tarif-col-num"><output class="tarif-total-reduction" title="Pourcentage global calculé, non modifiable">'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount"><output class="tarif-total-reduction" title="Pourcentage global calculé, non modifiable">'
         + fmt(line.total_reduction_percent) + ' %</output></span>'
-        + '<span class="tarif-cell tarif-col-num tarif-prices"><span class="tarif-price-label">Après remise théorique</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-net tarif-zone-start tarif-prices"><span class="tarif-price-label">Après remise théorique</span>'
         + '<span class="tarif-intermediate">' + fmt(line.intermediate_price) + ' &euro;</span>'
         + '<span class="tarif-price-label tarif-net-label">Net après les deux remises</span>'
         + '<div class="input-group tarif-final-group">'
         + '<input type="text" class="form-control tarif-final" aria-label="Prix net final, modifie la première remise" value="' + fmt(line.final_price) + '">'
         + '<span class="input-group-addon">&euro;</span></div></span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-public tarif-zone-start"><div class="input-group">'
+        + '<input type="text" class="form-control tarif-public-markup" placeholder="—"'
+        + ' aria-label="Majoration du prix public conseillé, en pourcentage du prix net" value="'
+        + fmtOptional(line.public_markup_percent) + '"><span class="input-group-addon">%</span></div></span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-public"><div class="input-group">'
+        + '<input type="text" class="form-control tarif-public-price" placeholder="—"'
+        + ' aria-label="Prix public conseillé HT, partagé par tous les tarifs" value="'
+        + fmtOptional(line.public_price) + '"><span class="input-group-addon">&euro;</span></div></span>'
         + '<span class="tarif-cell tarif-col-actions"><button type="button" class="btn btn-xs btn-danger tarif-delete-line">'
         + '<i class="icon-trash"></i></button></span>'
         + '<span class="tarif-cell tarif-col-processed"><input type="checkbox" class="tarif-processed"'
@@ -201,14 +214,20 @@
         + '<i class="icon-magic"></i> Appliquer</button></span></div>'
         + '</div>'
         + '<div class="tarif-lines-head" id="tarif-section-head-' + id + '">'
+        + '<span class="tarif-head-group tarif-hg-catalog">Catalogue</span>'
+        + '<span class="tarif-head-group tarif-hg-discount">Remises client</span>'
+        + '<span class="tarif-head-group tarif-hg-net">Prix net client</span>'
+        + '<span class="tarif-head-group tarif-hg-public" title="Prix partagé : identique dans tous les tarifs contenant ce produit">Prix public conseillé</span>'
         + '<span class="tarif-cell tarif-col-drag"></span><span class="tarif-cell tarif-col-img">Image</span>'
         + '<span class="tarif-cell tarif-col-info">Produit</span>'
-        + '<span class="tarif-cell tarif-col-num">Prix catalogue</span>'
-        + '<span class="tarif-cell tarif-col-num">Remise groupe</span>'
-        + '<span class="tarif-cell tarif-col-num">Remise théorique %</span>'
-        + '<span class="tarif-cell tarif-col-num">Remise suppl. %</span>'
-        + '<span class="tarif-cell tarif-col-num">Remise totale %</span>'
-        + '<span class="tarif-cell tarif-col-num">Prix final HT</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start">Prix catalogue HT</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-catalog">Remise groupe</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount tarif-zone-start">Remise théorique %</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount">Remise suppl. %</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-discount">Remise totale %</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-net tarif-zone-start">Prix net HT</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-public tarif-zone-start">Majoration %</span>'
+        + '<span class="tarif-cell tarif-col-num tarif-zone-public">PVC HT</span>'
         + '<span class="tarif-cell tarif-col-actions"></span>'
         + '<span class="tarif-cell tarif-col-processed">Traité</span>'
         + '</div>'
@@ -498,6 +517,67 @@
       }
       $row.find('.tarif-intermediate').text(first.toFixed(2) + ' €');
       $row.find('.tarif-total-reduction').text((base > 0 ? (1 - net / base) * 100 : 0).toFixed(2) + ' %');
+      updatePublicMarkup($row, intermediate === undefined ? net : parseNum($row.find('.tarif-final').val()));
+    }
+
+    // Le prix public conseillé est fixe (partagé par produit) : seule la majoration suit le prix net.
+    function updatePublicMarkup($row, net) {
+      var raw = $row.find('.tarif-public-price').val();
+      var $markup = $row.find('.tarif-public-markup');
+      if (raw == null || String(raw).trim() === '' || !(net > 0)) {
+        $markup.val('');
+        return;
+      }
+      $markup.val(((parseNum(raw) / net - 1) * 100).toFixed(2));
+    }
+
+    $('#tarif-sections').on('input', '.tarif-public-markup', function () {
+      var $row = $(this).closest('.tarif-line');
+      var raw = $(this).val();
+      var net = parseNum($row.find('.tarif-final').val());
+      $row.find('.tarif-public-price').val(raw == null || String(raw).trim() === '' || !(net > 0)
+        ? ''
+        : (Math.round((net * (1 + parseNum(raw) / 100) + Number.EPSILON) * 100) / 100).toFixed(2));
+    });
+
+    $('#tarif-sections').on('input', '.tarif-public-price', function () {
+      var $row = $(this).closest('.tarif-line');
+      updatePublicMarkup($row, parseNum($row.find('.tarif-final').val()));
+    });
+
+    $('#tarif-sections').on('change', '.tarif-public-markup', function () {
+      savePublicPrice($(this).closest('.tarif-line'), 'public_markup', $(this).val());
+    });
+
+    $('#tarif-sections').on('change', '.tarif-public-price', function () {
+      savePublicPrice($(this).closest('.tarif-line'), 'public_price', $(this).val());
+    });
+
+    function savePublicPrice($row, mode, value) {
+      var saved = false;
+      var request = api('UpdatePublicPrice', {
+        id_line: parseInt($row.data('id-line'), 10),
+        mode: mode,
+        value: value == null ? '' : String(value).trim()
+      }, function (resp) {
+        saved = true;
+        applyPublicResult($row, resp.line);
+      });
+      if (request && request.always) {
+        request.always(function () {
+          if (!saved) {
+            var previous = $row.attr('data-public-price');
+            $row.find('.tarif-public-price').val(previous);
+            updatePublicMarkup($row, parseNum($row.find('.tarif-final').val()));
+          }
+        });
+      }
+    }
+
+    function applyPublicResult($row, line) {
+      $row.attr('data-public-price', fmtOptional(line.public_price));
+      $row.find('.tarif-public-price').val(fmtOptional(line.public_price));
+      $row.find('.tarif-public-markup').val(fmtOptional(line.public_markup_percent));
     }
 
     $('#tarif-sections').on('input', '.tarif-reduction, .tarif-additional-reduction', function () {
@@ -548,6 +628,9 @@
       $row.find('.tarif-final').val(fmt(line.final_price));
       $row.find('.tarif-intermediate').text(fmt(line.intermediate_price) + ' €');
       $row.find('.tarif-total-reduction').text(fmt(line.total_reduction_percent) + ' %');
+      if (line.public_price !== undefined) {
+        applyPublicResult($row, line);
+      }
       updateSourceBadge($row, line.reduction_source);
     }
 
@@ -696,6 +779,23 @@
         refreshTargetSections();
         initSortables();
         saveOrder();
+      });
+    });
+
+    // ── Affichage du prix public conseillé dans les exports ─────────────────
+    $('#tarif-show-public-price').on('change', function () {
+      var $checkbox = $(this);
+      var show = $checkbox.prop('checked');
+      var saved = false;
+      $checkbox.prop('disabled', true);
+      api('SetShowPublicPrice', { show_public_price: show ? 1 : 0 }, function (resp) {
+        saved = true;
+        $checkbox.prop('checked', !!resp.show_public_price);
+      }).always(function () {
+        if (!saved) {
+          $checkbox.prop('checked', !show);
+        }
+        $checkbox.prop('disabled', false);
       });
     });
 

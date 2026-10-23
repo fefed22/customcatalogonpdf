@@ -4,6 +4,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 return [
+    'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_public_price`',
     'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_validation`',
     'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`',
     'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_section`',

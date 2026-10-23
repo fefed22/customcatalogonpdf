@@ -32,9 +32,11 @@ Chaque profil définit le contenu du catalogue, son titre et sa politique tarifa
 - organisation des produits en sections titrées, avec glisser-déposer ;
 - réduction en pourcentage par ligne appliquée au prix actuel du client ;
 - remise supplémentaire successive, par ligne ou par section, avec prix intermédiaire, prix net et remise totale calculée ;
+- prix public conseillé HT par produit/déclinaison, saisi en prix ou en majoration % du prix net client, partagé par tous les tarifs ;
+- colonnes regroupées par couleur et en-tête de colonnes figé pendant le défilement ;
 - duplication d'un tarif vers un autre client ;
 - logo et nom personnalisés par tarif ;
-- export du tarif client en PDF, Excel et CSV (infos produit + prix final uniquement) ;
+- export du tarif client en PDF, Excel et CSV (infos produit + prix final, et prix public conseillé en option) ;
 - validation d'un tarif sur le client ou son groupe par défaut, avec deux confirmations et un historique complet.
 
 ## Exemple de nom de fichier
@@ -156,6 +158,23 @@ Chaque section, y compris **Sans section** et les sections ajoutées sans rechar
 
 Les validations client/groupe appliquent la remise globale issue du prix net après les deux remises. Les exports PDF, Excel et CSV continuent de présenter uniquement le prix net final, sans exposer les remises internes.
 
+### Prix public conseillé
+
+Les colonnes sont regroupées en quatre zones de couleur : **Catalogue** (gris), **Remises client** (bleu), **Prix net client** (vert) et **Prix public conseillé** (orange). Dans la zone défilante du tarif, l'en-tête des colonnes reste visible pendant le défilement vertical et les colonnes image/produit restent visibles pendant le défilement horizontal.
+
+La zone **Prix public conseillé** propose deux champs liés sur chaque ligne :
+
+- **Majoration %** : pourcentage appliqué au prix net HT du client ; saisir 25 % sur un prix net de 80 € donne un **PVC HT** de 100 € ;
+- **PVC HT** : prix public conseillé hors taxes ; saisir 120 € sur un prix net de 80 € recalcule la majoration à 50 %.
+
+Le prix est arrondi au centime et enregistré à la sortie du champ. Vider l'un des deux champs supprime le prix public conseillé. Une majoration n'est pas possible sur un prix net nul (saisir alors directement le PVC).
+
+Le prix public conseillé est **unique par produit ou déclinaison** et **partagé par tous les tarifs** : il est visible et modifiable depuis chaque tarif contenant le produit, et une modification s'applique partout. La majoration affichée est propre à chaque tarif, car elle est calculée à partir du prix net de son client. Modifier une remise, le prix net, rafraîchir ou synchroniser les prix conserve le PVC et recalcule la majoration.
+
+La case **Afficher le prix public conseillé dans les exports**, sous les boutons d'export, est enregistrée sur le tarif (désactivée par défaut, conservée à la duplication). Lorsqu'elle est cochée, le PDF ajoute une ligne « Prix public conseillé : … € HT » sous le prix net, et les exports Excel et CSV ajoutent une colonne **Prix public conseillé HT** (vide pour les produits sans PVC).
+
+La mise à jour du module vers **1.7.0** crée la table des prix publics conseillés et ajoute l'option d'export, désactivée sur les tarifs existants. Exécuter la mise à niveau du module depuis le gestionnaire de modules après le déploiement.
+
 La mise à jour du module vers **1.6.0** ajoute la seconde remise à zéro sans modifier les prix ni les premières remises des tarifs existants.
 
 Le bouton **Rafraîchir les prix** réactualise le prix catalogue, la remise de groupe et le prix actuel de chaque ligne selon les tarifs en vigueur (les deux remises saisies sont conservées, le prix net final est recalculé).
@@ -170,7 +189,7 @@ Depuis l'éditeur, sélectionner un client cible puis **Dupliquer** : un nouveau
 
 ### Exporter
 
-Les boutons **PDF**, **Excel** et **CSV** produisent le document du tarif. Conformément aux règles du module, les exports ne contiennent que les informations produit et le **prix final** — jamais le prix d'origine ni la réduction.
+Les boutons **PDF**, **Excel** et **CSV** produisent le document du tarif. Conformément aux règles du module, les exports ne contiennent que les informations produit et le **prix final** — jamais le prix d'origine ni la réduction. Le **prix public conseillé HT** n'y figure que si l'option du tarif est cochée.
 
 ### Valider
 
@@ -280,6 +299,7 @@ Ces données doivent être correctement renseignées dans PrestaShop avant de g�
 | [`upgrade/upgrade-1.4.0.php`](upgrade/upgrade-1.4.0.php) | Ajout du tarif source optionnel aux profils de catalogue. |
 | [`upgrade/upgrade-1.5.0.php`](upgrade/upgrade-1.5.0.php) | Création de l'historique des validations et reprise des dates de validation connues. |
 | [`upgrade/upgrade-1.6.0.php`](upgrade/upgrade-1.6.0.php) | Ajout de la remise supplémentaire, initialisée à zéro sans modification des prix existants. |
+| [`upgrade/upgrade-1.7.0.php`](upgrade/upgrade-1.7.0.php) | Création de la table partagée des prix publics conseillés et de l'option d'export par tarif (désactivée). |
 
 ## Désinstallation
 
@@ -323,6 +343,8 @@ Exécuter `php tests/product-search.php` depuis le dossier du module (extension 
 Exécuter également `node tests/product-modal.cjs` pour vérifier le rendu du bouton d'ajout de toutes les déclinaisons, la section cible, le grisement des fiches après ajout, la gestion des erreurs et le maintien de l'ajout individuel.
 
 Exécuter `node tests/section-collapse.cjs` pour vérifier le repli/dépli indépendant des sections, les états d'accessibilité et les contrôles des sections existantes ou créées dynamiquement.
+
+Exécuter `php tests/public-price.php` et `node tests/tarif-discounts.cjs` pour vérifier le prix public conseillé : calcul prix ⇄ majoration, partage entre tarifs, suppression, valeurs invalides, conservation lors des changements de prix net, option d'export, colonnes de l'éditeur, en-tête figé et migration 1.7.0.
 
 Exécuter `node tests/line-processed.cjs` pour vérifier la coche de suivi, son rendu et le rétablissement de son état en cas d'erreur ; les tests PHP vérifient également sa persistance et son isolation par tarif.
 

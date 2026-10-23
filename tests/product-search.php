@@ -10,6 +10,7 @@ class ObjectModel
     public const TYPE_INT = 1;
     public const TYPE_STRING = 2;
     public const TYPE_DATE = 3;
+    public const TYPE_BOOL = 4;
     public int $id;
 
     public function __construct(int $id)

@@ -11,6 +11,7 @@ class ObjectModel
     public const TYPE_INT = 1;
     public const TYPE_STRING = 2;
     public const TYPE_DATE = 3;
+    public const TYPE_BOOL = 4;
     public int $id = 0;
 
     public function __construct(int $id = 0)
@@ -42,6 +43,7 @@ class ObjectModel
             'name' => $this->name,
             'logo' => $this->logo,
             'status' => $this->status,
+            'show_public_price' => (int) $this->show_public_price,
             'date_validated' => $this->date_validated,
         ])) {
             return false;
@@ -128,7 +130,7 @@ class Db
         $this->pdo->exec('
             CREATE TABLE ps_customcatalogonpdf_tarif (
                 id_tarif INTEGER PRIMARY KEY, id_customer INTEGER, status INTEGER,
-                date_validated TEXT, date_add TEXT, date_upd TEXT, name TEXT, logo TEXT DEFAULT ""
+                show_public_price INTEGER NOT NULL DEFAULT 0, date_validated TEXT, date_add TEXT, date_upd TEXT, name TEXT, logo TEXT DEFAULT ""
             );
             INSERT INTO ps_customcatalogonpdf_tarif (id_tarif, id_customer, status, date_validated, date_add, date_upd, name)
                 VALUES (1, 10, 0, NULL, "", "", "Test");
@@ -153,6 +155,11 @@ class Db
             );
             INSERT INTO ps_customcatalogonpdf_tarif_line (id_line, id_tarif, id_product, id_product_attribute, final_price)
                 VALUES (1, 1, 1, 0, 80), (2, 1, 2, 21, 70);
+            CREATE TABLE ps_customcatalogonpdf_public_price (
+                id_product INTEGER NOT NULL, id_product_attribute INTEGER NOT NULL DEFAULT 0,
+                public_price NUMERIC NOT NULL DEFAULT 0, date_upd TEXT NOT NULL,
+                PRIMARY KEY (id_product, id_product_attribute)
+            );
             CREATE TABLE ps_customcatalogonpdf_tarif_validation (
                 id_validation INTEGER PRIMARY KEY AUTOINCREMENT, id_tarif INTEGER,
                 target_type TEXT, id_target INTEGER, target_name TEXT, id_employee INTEGER,
@@ -208,7 +215,7 @@ class Db
             $sql = str_replace(' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4', '', $sql);
         }
         if (strpos($sql, 'ALTER TABLE') === 0) {
-            $sql = str_replace(' AFTER `reduction_percent`', '', $sql);
+            $sql = preg_replace('/ AFTER `[a-z_]+`/', '', $sql);
         }
 
         return $this->pdo->exec($sql) !== false;
@@ -222,10 +229,10 @@ class Db
         if ($this->fails('read')) {
             return false;
         }
-        if (str_starts_with($sql, 'SHOW COLUMNS')) {
+        if (preg_match('/^SHOW COLUMNS FROM `?(\w+)`? LIKE ["\'](\w+)["\']/', $sql, $match)) {
             return array_values(array_filter(
-                $this->pdo->query('PRAGMA table_info(ps_customcatalogonpdf_tarif_line)')->fetchAll(PDO::FETCH_ASSOC),
-                static fn (array $column): bool => $column['name'] === 'additional_reduction_percent'
+                $this->pdo->query('PRAGMA table_info(' . $match[1] . ')')->fetchAll(PDO::FETCH_ASSOC),
+                static fn (array $column): bool => $column['name'] === $match[2]
             ));
         }
 

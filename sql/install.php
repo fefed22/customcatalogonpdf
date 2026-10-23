@@ -26,6 +26,7 @@ return [
         `name`            VARCHAR(255)     NOT NULL DEFAULT \'\',
         `logo`            VARCHAR(255)     NOT NULL DEFAULT \'\',
         `status`          TINYINT(1)       NOT NULL DEFAULT 0,
+        `show_public_price` TINYINT(1)     NOT NULL DEFAULT 0,
         `date_validated`  DATETIME         NULL DEFAULT NULL,
         `date_add`        DATETIME         NOT NULL,
         `date_upd`        DATETIME         NOT NULL,
@@ -73,5 +74,13 @@ return [
         PRIMARY KEY (`id_line`),
         KEY `id_tarif` (`id_tarif`),
         KEY `id_section` (`id_section`)
+    ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;',
+
+    'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'customcatalogonpdf_public_price` (
+        `id_product`            INT(10) UNSIGNED NOT NULL,
+        `id_product_attribute`  INT(10) UNSIGNED NOT NULL DEFAULT 0,
+        `public_price`          DECIMAL(20,6)    NOT NULL DEFAULT 0,
+        `date_upd`              DATETIME         NOT NULL,
+        PRIMARY KEY (`id_product`, `id_product_attribute`)
     ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;',
 ];

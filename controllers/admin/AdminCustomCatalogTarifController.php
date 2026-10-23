@@ -3,7 +3,8 @@
  * Contrôleur admin des tarifs clients.
  *
  * Fournit la liste des tarifs, le formulaire d'en-tête (client, nom, logo),
- * l'éditeur de sections / lignes (via AJAX), les exports PDF / Excel / CSV,
+ * l'éditeur de sections / lignes (via AJAX), le prix public conseillé, les
+ * exports PDF / Excel / CSV (avec ou sans prix public),
  * la duplication vers un autre client et la validation en prix spécifiques.
  *
  * @author Créa2média
@@ -440,6 +441,7 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             'product_manufacturers' => $this->service->getProductManufacturers(),
             'customer' => $data['customer'] ?? null,
             'has_changes' => !empty($data['has_changes']),
+            'show_public_price' => !empty($data['show_public_price']),
             'validation_targets' => $this->service->getValidationTargets((int) $tarif->id),
             'validation_history' => $this->service->getValidationHistory((int) $tarif->id),
             'ajax_url' => $ajaxUrl,
@@ -569,6 +571,36 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
             $value = $this->parseFloat((string) Tools::getValue('value'));
             $result = $this->service->updateLine($idTarif, $idLine, $mode, $value);
             $this->ajaxRender(json_encode(['success' => true, 'line' => $result]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessUpdatePublicPrice(): void
+    {
+        try {
+            $raw = trim((string) Tools::getValue('value'));
+            $result = $this->service->updatePublicPrice(
+                (int) Tools::getValue('id_tarif'),
+                (int) Tools::getValue('id_line'),
+                (string) Tools::getValue('mode'),
+                $raw === '' ? null : $this->parseFloat($raw)
+            );
+            $this->ajaxRender(json_encode(['success' => true, 'line' => $result]));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
+    public function ajaxProcessSetShowPublicPrice(): void
+    {
+        try {
+            $value = (string) Tools::getValue('show_public_price');
+            if (!in_array($value, ['0', '1'], true)) {
+                throw new RuntimeException($this->l('Choix d’affichage invalide.'));
+            }
+            $show = $this->service->setShowPublicPrice((int) Tools::getValue('id_tarif'), $value === '1');
+            $this->ajaxRender(json_encode(['success' => true, 'show_public_price' => $show]));
         } catch (Throwable $e) {
             $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
         }

@@ -30,6 +30,9 @@ class CustomCatalogTarif extends ObjectModel
     /** @var int Statut : brouillon (0) ou validé (1) */
     public $status = self::STATUS_DRAFT;
 
+    /** @var bool Afficher le prix public conseillé dans les exports PDF / Excel / CSV */
+    public $show_public_price = false;
+
     /** @var string|null Date de dernière validation */
     public $date_validated;
 
@@ -47,6 +50,7 @@ class CustomCatalogTarif extends ObjectModel
             'name'           => ['type' => self::TYPE_STRING, 'required' => true, 'size' => 255],
             'logo'           => ['type' => self::TYPE_STRING, 'size' => 255],
             'status'         => ['type' => self::TYPE_INT],
+            'show_public_price' => ['type' => self::TYPE_BOOL, 'validate' => 'isBool'],
             'date_validated' => ['type' => self::TYPE_DATE, 'validate' => 'isDateOrNull'],
             'date_add'       => ['type' => self::TYPE_DATE],
             'date_upd'       => ['type' => self::TYPE_DATE],
