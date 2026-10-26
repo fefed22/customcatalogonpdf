@@ -1232,6 +1232,59 @@ class TarifService
     }
 
     /**
+     * Applique une majoration (%) au prix net de chaque ligne de la section pour
+     * fixer son prix public conseillé. Les lignes à prix net nul sont ignorées.
+     * Le PVC étant partagé, la modification s'applique à tous les tarifs.
+     *
+     * @return array{lines: array, skipped: int[]}
+     */
+    public function applySectionPublicMarkup(int $idTarif, int $idSection, float $markupPercent): array
+    {
+        $tarif = new CustomCatalogTarif($idTarif);
+        if (!Validate::isLoadedObject($tarif)) {
+            throw new RuntimeException($this->module->l('Tarif introuvable.'));
+        }
+        if (!is_finite($markupPercent) || $markupPercent <= -100) {
+            throw new RuntimeException($this->module->l('La majoration doit être supérieure à -100 %.'));
+        }
+
+        $lines = Db::getInstance()->executeS('
+            SELECT id_line, final_price
+            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_line`
+            WHERE id_tarif = ' . (int) $idTarif . ' AND id_section = ' . (int) $idSection . '
+            ORDER BY position, id_line');
+        if ($lines === false) {
+            throw new RuntimeException($this->module->l('Impossible de charger les lignes de la section.'));
+        }
+
+        $db = Db::getInstance();
+        if (!$db->execute('START TRANSACTION')) {
+            throw new RuntimeException($this->module->l('Impossible de démarrer la mise à jour de section.'));
+        }
+        try {
+            $updated = [];
+            $skipped = [];
+            foreach ($lines as $line) {
+                if ((float) $line['final_price'] <= 0) {
+                    $skipped[] = (int) $line['id_line'];
+                    continue;
+                }
+                $updated[] = $this->updatePublicPrice($idTarif, (int) $line['id_line'], 'public_markup', $markupPercent);
+            }
+            if (!$db->execute('COMMIT')) {
+                throw new RuntimeException($this->module->l('Impossible de finaliser les prix publics de section.'));
+            }
+        } catch (Throwable $e) {
+            if (!$db->execute('ROLLBACK')) {
+                throw new RuntimeException($this->module->l('Échec de l’annulation des prix publics de section.'), 0, $e);
+            }
+            throw $e;
+        }
+
+        return ['lines' => $updated, 'skipped' => $skipped];
+    }
+
+    /**
      * Remplace une des deux remises sur la section en conservant l'autre.
      */
     public function applySectionReduction(int $idTarif, int $idSection, float $reductionPercent, string $mode = 'reduction'): array
@@ -1313,19 +1366,25 @@ class TarifService
     // Gestion des sections
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Crée une section en tête du tarif : les sections existantes sont décalées.
+     */
     public function addSection(int $idTarif, string $title): array
     {
-        $position = (int) Db::getInstance()->getValue('
-            SELECT IFNULL(MAX(position), -1) + 1
-            FROM `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_section`
-            WHERE id_tarif = ' . (int) $idTarif);
-
-        Db::getInstance()->insert('customcatalogonpdf_tarif_section', [
-            'id_tarif' => (int) $idTarif,
-            'title' => pSQL($title),
-            'position' => $position,
-        ]);
-        $idSection = (int) Db::getInstance()->Insert_ID();
+        $db = Db::getInstance();
+        $position = 0;
+        if (!$db->execute('
+            UPDATE `' . _DB_PREFIX_ . 'customcatalogonpdf_tarif_section`
+            SET position = position + 1
+            WHERE id_tarif = ' . (int) $idTarif)
+            || !$db->insert('customcatalogonpdf_tarif_section', [
+                'id_tarif' => (int) $idTarif,
+                'title' => pSQL($title),
+                'position' => $position,
+            ])) {
+            throw new RuntimeException($this->module->l('Impossible de créer la section.'));
+        }
+        $idSection = (int) $db->Insert_ID();
         $this->touchById($idTarif);
 
         return [

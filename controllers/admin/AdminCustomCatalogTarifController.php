@@ -637,6 +637,20 @@ class AdminCustomCatalogTarifController extends ModuleAdminController
         }
     }
 
+    public function ajaxProcessApplySectionPublicMarkup(): void
+    {
+        try {
+            $result = $this->service->applySectionPublicMarkup(
+                (int) Tools::getValue('id_tarif'),
+                (int) Tools::getValue('id_section'),
+                $this->parseFloat((string) Tools::getValue('value'))
+            );
+            $this->ajaxRender(json_encode(['success' => true] + $result));
+        } catch (Throwable $e) {
+            $this->ajaxRender(json_encode(['success' => false, 'error' => $e->getMessage()]));
+        }
+    }
+
     public function ajaxProcessAddByReferences(): void
     {
         try {

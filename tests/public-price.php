@@ -89,6 +89,39 @@ check($line['public_price'] === 50.0 && $line['public_markup_percent'] === null,
     'A free net price accepts a typed public price without dividing by zero.');
 
 resetPublicPrices();
+$db->execute('UPDATE ps_customcatalogonpdf_tarif_line SET final_price = 60 WHERE id_line = 2');
+$result = $service->applySectionPublicMarkup(1, 0, 25);
+check(count($result['lines']) === 2 && $result['skipped'] === [], 'A section markup updates every line of the section.');
+near($service->getPublicPrice(1, 0), 100, 'The section markup is applied to the net price of each line (80 → 100).');
+near($service->getPublicPrice(2, 21), 75, 'Each line uses its own net price (60 → 75).');
+near($result['lines'][1]['public_markup_percent'], 25, 'The section response returns the new markup of each line.');
+
+$db->execute('UPDATE ps_customcatalogonpdf_tarif_line SET id_section = 7 WHERE id_line = 2');
+$result = $service->applySectionPublicMarkup(1, 7, 50);
+check(count($result['lines']) === 1 && $result['lines'][0]['id_line'] === 2, 'A section markup only targets the chosen section.');
+near($service->getPublicPrice(1, 0), 100, 'Lines outside the section keep their public price.');
+near($service->getPublicPrice(2, 21), 90, 'The named section receives its markup.');
+
+$db->execute('UPDATE ps_customcatalogonpdf_tarif_line SET id_section = 0, final_price = 0 WHERE id_line = 2');
+$result = $service->applySectionPublicMarkup(1, 0, 10);
+check($result['skipped'] === [2] && count($result['lines']) === 1,
+    'Lines with a free net price are skipped and reported by a section markup.');
+near($service->getPublicPrice(2, 21), 90, 'Skipped lines keep their public price.');
+near($service->getPublicPrice(1, 0), 88, 'Other lines of the section still receive the markup.');
+foreach ([-100, -120, INF, NAN] as $value) {
+    rejects(fn () => $service->applySectionPublicMarkup(1, 0, $value), 'Invalid section markups are rejected.');
+}
+rejects(fn () => $service->applySectionPublicMarkup(999, 0, 10), 'A section markup requires an existing tariff.');
+
+$db->execute('UPDATE ps_customcatalogonpdf_tarif_line SET final_price = 80 WHERE id_line = 2');
+$db->execute('DELETE FROM ps_customcatalogonpdf_public_price WHERE id_product = 2');
+$before = $db->executeS('SELECT * FROM ps_customcatalogonpdf_public_price');
+$db->failure = 'insert:customcatalogonpdf_public_price';
+rejects(fn () => $service->applySectionPublicMarkup(1, 0, 30), 'A failure on a later line of the section is reported.');
+check($db->executeS('SELECT * FROM ps_customcatalogonpdf_public_price') === $before,
+    'A failed section markup rolls back the public prices already changed.');
+
+resetPublicPrices();
 $service->updatePublicPrice(1, 1, 'public_price', 99.9);
 $dataset = $service->buildExportDataset(1);
 check(count($dataset['headers']) === 5 && !in_array('public_price', array_column($dataset['headers'], 'key'), true)

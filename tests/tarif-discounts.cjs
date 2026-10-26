@@ -37,21 +37,27 @@ row = {
   data: () => 17,
   find: field
 };
+const rowsById = {};
+function jq(selector) {
+  if (selector === '#tarif-sections') {
+    return { on(event, target, callback) { events[event + ':' + target] = callback; } };
+  }
+  if (typeof selector === 'string' && selector.startsWith('.tarif-line[')) {
+    const id = selector.match(/data-id-line="(\d+)"/)[1];
+    return rowsById[id] || (id === '17' ? row : { length: 0 });
+  }
+  return selector;
+}
+jq.each = (items, callback) => items.forEach((item, index) => callback(index, item));
 const context = vm.createContext({
-  $: selector => {
-    if (selector === '#tarif-sections') {
-      return { on(event, target, callback) { events[event + ':' + target] = callback; } };
-    }
-    if (typeof selector === 'string' && selector.startsWith('.tarif-line[')) return row;
-    return selector;
-  },
+  $: jq,
   parseNum: value => parseFloat(String(value).replace(',', '.')) || 0,
   fmt: value => Number(value || 0).toFixed(2),
   fmtOptional: value => value == null || value === '' ? '' : Number(value).toFixed(2),
   updateSourceBadge() {},
   api(action, data, callback) {
     requests.push({ action, data });
-    if (action === 'UpdatePublicPrice' && apiResponse) callback(apiResponse);
+    if ((action === 'UpdatePublicPrice' || action === 'ApplySectionPublicMarkup') && apiResponse) callback(apiResponse);
     return { always(done) { done(); } };
   }
 });
@@ -115,6 +121,60 @@ for (const additional of [false, true]) {
   assert.equal(request.data.value, 7.5);
 }
 console.log('PASS: both section buttons post the proper discount mode and accept French decimal separators.');
+
+const alerts = [];
+const confirms = [];
+context.window = {
+  confirm(message) { confirms.push(message); return true; },
+  alert(message) { alerts.push(message); }
+};
+const markupInput = {
+  value: '12,5',
+  val(value) { if (value === undefined) return this.value; this.value = value; return this; }
+};
+const markupSection = {
+  data: () => 4,
+  find: selector => selector === '.tarif-line' ? { length: 2 } : markupInput
+};
+const markupButton = { closest: () => markupSection };
+publicAttr = '';
+apiResponse = { lines: [{ id_line: 17, public_price: 90, public_markup_percent: 12.5 }, { id_line: 99, public_price: 1 }], skipped: [] };
+const requestCount = requests.length;
+events['click:.tarif-apply-section-markup'].call(markupButton);
+let markupRequest = requests[requests.length - 1];
+assert.equal(markupRequest.action, 'ApplySectionPublicMarkup');
+assert.deepEqual({ ...markupRequest.data }, { id_section: 4, value: 12.5 });
+assert.match(confirms[confirms.length - 1], /12\.50 % au prix net de 2 produit/);
+assert.match(confirms[confirms.length - 1], /partagé/);
+assert.equal(publicAttr, '90.00');
+assert.equal(values['.tarif-public-price'], '90.00');
+assert.equal(values['.tarif-public-markup'], '12.50');
+assert.equal(markupInput.value, '');
+assert.equal(alerts.length, 0);
+console.log('PASS: the section markup posts the section and percentage, warns about sharing and updates the returned lines.');
+
+markupInput.value = '10';
+apiResponse = { lines: [], skipped: [17] };
+events['click:.tarif-apply-section-markup'].call(markupButton);
+assert.match(alerts[alerts.length - 1], /1 produit\(s\) à prix net nul ignoré/);
+for (const invalid of ['', '-100', '-150', 'abc']) {
+  markupInput.value = invalid;
+  events['click:.tarif-apply-section-markup'].call(markupButton);
+}
+assert.equal(requests.length, requestCount + 2);
+assert.equal(alerts.filter(message => /majoration valide/.test(message)).length, 4);
+console.log('PASS: invalid section markups are rejected locally and skipped free lines are reported.');
+
+let clicked = 0;
+const keyInput = { closest: () => ({ find: () => ({ trigger(name) { if (name === 'click') clicked++; } }) }) };
+const keyHandler = events['keydown:.tarif-section-reduction-input, .tarif-section-additional-input, .tarif-section-markup-input'];
+let prevented = false;
+keyHandler.call(keyInput, { key: 'Enter', preventDefault() { prevented = true; } });
+keyHandler.call(keyInput, { key: 'a', preventDefault() {} });
+assert.equal(clicked, 1);
+assert(prevented);
+console.log('PASS: pressing Enter in a section field applies it.');
+apiResponse = null;
 
 // ── Prix public conseillé ──────────────────────────────────────────────
 values['.tarif-reduction'] = '20';
@@ -213,6 +273,14 @@ for (const group of ['Catalogue', 'Remises client', 'Prix net client', 'Prix pub
 assert.match(sectionHtml, /Majoration %/);
 assert.match(sectionHtml, /PVC HT/);
 const cellCount = html => (html.match(/class="tarif-cell /g) || []).length;
+const headHtml = sectionHtml.slice(sectionHtml.indexOf('tarif-lines-head'), sectionHtml.indexOf('tarif-lines"'));
+const headerHtml = sectionHtml.slice(0, sectionHtml.indexOf('tarif-lines-head'));
+for (const kind of ['reduction', 'additional', 'markup']) {
+  assert.match(headHtml, new RegExp('class="tarif-head-tool tarif-tool-' + kind + ' '));
+  assert.match(headHtml, new RegExp('class="btn btn-default tarif-apply-section-' + kind + '"'));
+  assert.doesNotMatch(headerHtml, new RegExp('tarif-section-' + kind));
+}
+assert.match(headHtml, /Appliquer à toute la section/);
 assert.equal(cellCount(lineHtml), 13);
 assert.equal(cellCount(sectionHtml.slice(sectionHtml.indexOf('tarif-lines-head'))), 13);
 console.log('PASS: dynamic rows and headers show grouped columns with the markup and public price cells.');
@@ -232,6 +300,12 @@ const headStart = template.indexOf('<div class="tarif-lines-head"');
 const head = template.slice(headStart, template.indexOf('</div>', headStart));
 assert.equal(cellCount(head), 13);
 assert.equal((head.match(/class="tarif-head-group /g) || []).length, 4);
+for (const kind of ['reduction', 'additional', 'markup']) {
+  assert.match(head, new RegExp('class="tarif-head-tool tarif-tool-' + kind + ' '));
+  assert.match(head, new RegExp('class="form-control tarif-section-' + kind + '-input"'));
+}
+const savedHeader = template.slice(template.indexOf('<div class="tarif-section-header">'), headStart);
+assert.doesNotMatch(savedHeader, /tarif-section-(reduction|additional|markup)/);
 const lineStart = template.indexOf('<div class="tarif-line" ');
 const savedLine = template.slice(lineStart, template.indexOf('{/foreach}', lineStart));
 assert.equal(cellCount(savedLine), 13);
@@ -242,7 +316,13 @@ const grid = css.match(/\.tarif-line \{\s*display: grid;\s*grid-template-columns
 assert.equal(grid.length, 13);
 assert.match(css, /\.tarif-lines-head \{[^}]*position: sticky;[^}]*top: 0;/);
 assert.match(css, /#tarif-sections \{[^}]*overflow: auto;/);
-console.log('PASS: the grid has one column per cell and the column header stays visible while scrolling.');
+const headLabels = (head.match(/class="tarif-cell [^"]*">[^<]*/g) || []).map(cell => cell.replace(/.*>/, ''));
+const toolColumn = kind => Number(css.match(new RegExp('\\.tarif-tool-' + kind + ' \\{ grid-column: (\\d+); \\}'))[1]);
+assert.match(headLabels[toolColumn('reduction') - 1], /Remise théorique %/);
+assert.match(headLabels[toolColumn('additional') - 1], /Remise suppl\. %/);
+assert.match(headLabels[toolColumn('markup') - 1], /Majoration %/);
+assert.match(css, /\.tarif-head-tool \{[^}]*grid-row: 3;/);
+console.log('PASS: the grid has one column per cell, section fields sit under their column and the header stays visible while scrolling.');
 
 let toggle;
 let toggleResult = true;

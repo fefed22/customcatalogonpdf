@@ -124,13 +124,17 @@ Le menu **Catalogue > Tarifs clients** permet de créer des documents de tarific
 
 1. Cliquer sur **Ajouter**, saisir un **nom**, sélectionner un **client** et, si besoin, téléverser un **logo**.
 2. Enregistrer : l'éditeur de contenu s'affiche sous le formulaire.
-3. Rechercher un produit (nom, référence, EAN ou marque), éventuellement filtrer par **Marque**, choisir une section cible puis **Ajouter**. Le select exclut les produits et déclinaisons déjà présents dans le tarif. Pour un produit à déclinaisons, il propose chaque déclinaison restante individuellement **et** une entrée globale « Déclinaisons restantes » qui les ajoute toutes d'un coup dans la section.
-4. Pour un ajout en masse, cliquer sur **Réf. en masse** : une fenêtre propose une section cible et une zone de texte où l'on colle une référence (produit ou déclinaison) par ligne. Toutes les références reconnues sont ajoutées dans la section choisie ; les références introuvables et celles déjà présentes dans le tarif sont listées.
-5. Créer des **sections** titrées et réorganiser sections et lignes par glisser-déposer. Chaque en-tête propose **Théorique %** et **Supplémentaire %**, avec leurs boutons **Appliquer** : après confirmation, seule la remise choisie est remplacée sur les lignes de la section.
+3. Dans le panneau **Ajouter des produits**, les trois étapes numérotées se combinent : ① choisir la **Section de destination** (ou cliquer sur **Rajouter section**), ② filtrer éventuellement par **Marque**, ③ rechercher un produit (nom, référence, EAN ou marque) puis **Ajouter**. La recherche ne propose que les produits de la marque choisie et ajoute dans la section choisie. Le select exclut les produits et déclinaisons déjà présents dans le tarif. Pour un produit à déclinaisons, il propose chaque déclinaison restante individuellement **et** une entrée globale « Déclinaisons restantes » qui les ajoute toutes d'un coup dans la section.
+4. Sous **Ou ajouter autrement**, **Parcourir les produits** et **Coller des références en masse** sont deux autres façons d'ajouter des produits ; elles reprennent par défaut la marque et la section choisies au-dessus. Pour un ajout en masse, la fenêtre propose une section cible et une zone de texte où l'on colle une référence (produit ou déclinaison) par ligne. Toutes les références reconnues sont ajoutées dans la section choisie ; les références introuvables et celles déjà présentes dans le tarif sont listées.
+5. Créer des **sections** titrées avec **Rajouter section** : la nouvelle section est placée en tête des produits, devient la section de destination et son titre reçoit le focus. Réorganiser sections et lignes par glisser-déposer. Chaque en-tête propose **Théorique %** et **Supplémentaire %**, avec leurs boutons **Appliquer** : après confirmation, seule la remise choisie est remplacée sur les lignes de la section.
+
+La colonne **N°** numérote les lignes en continu sur tout le tarif, sans repartir à 1 à chaque section ; le survol d'un numéro indique « Ligne 12 sur 87 ». L'en-tête de chaque section rappelle sa plage (« Lignes 13 à 24 sur 87 · 12 produits »). La numérotation se met à jour à chaque ajout, suppression ou déplacement de ligne ou de section ; elle ne figure pas dans les exports.
 
 Le bouton **Replier / Déplier** dans chaque en-tête masque ou affiche les produits de la section, y compris **Sans section** et les sections nouvellement créées. L'en-tête reste visible et les lignes restent dans le tarif : leur ordre, leurs prix et les exports ne changent pas. Les sections sont dépliées au chargement de la page.
 
 La colonne **Traité** permet de cocher ou décocher chaque ligne pour suivre sa vérification, même si sa réduction reste à 0 %. La coche est enregistrée immédiatement dans le tarif et conservée au rechargement. Elle est indépendante des prix, des réductions, de la validation et des exports. Les nouvelles lignes sont non traitées ; lors d'une duplication vers un autre client, les coches sont réinitialisées pour permettre une nouvelle vérification. Une erreur d'enregistrement est signalée et la case reprend son état précédent.
+
+Le bloc **Validation du tarif** est replié par défaut ; son titre rappelle la dernière validation (date et cible) et un clic l'ouvre pour accéder aux boutons de validation et à l'historique.
 
 À l'édition d'un tarif existant, le bloc **Tarif client** (nom, client, logo) est replié par défaut et le bouton **Enregistrer** de la barre d'outils supérieure est retiré. Déplier le bloc permet de modifier ces informations et d'utiliser son bouton d'enregistrement interne. Le bloc reste ouvert en cas d'erreur de formulaire. À la création, le formulaire et son enregistrement restent visibles.
 
@@ -154,7 +158,7 @@ La colonne **Prix final HT** distingue **« Après remise théorique »** (inter
 
 Une flèche **→** à droite de la remise de groupe permet de la réappliquer en un clic à la première remise, sans effacer la remise supplémentaire. Une pastille indique l'origine de la première remise affichée : **Remise groupe**, **Remise client** ou **Remise perso**.
 
-Chaque section, y compris **Sans section** et les sections ajoutées sans recharger la page, propose deux actions distinctes **Théorique %** et **Supplémentaire %**. Chaque action remplace uniquement la remise correspondante sur les lignes de cette section et conserve l'autre. Le rafraîchissement et la duplication conservent les deux pourcentages. La synchronisation qui préserve les prix nets conserve aussi la remise supplémentaire et ajuste uniquement la première remise.
+Chaque section, y compris **Sans section** et les sections ajoutées sans recharger la page, propose sur la rangée **« Appliquer à toute la section »** de l'en-tête des colonnes trois champs placés juste sous la colonne concernée : **Remise théorique %**, **Remise suppl. %** et **Majoration %**. Saisir la valeur puis cliquer sur la baguette (ou appuyer sur Entrée) ; une confirmation est demandée. Chaque action de remise remplace uniquement la remise correspondante sur les lignes de cette section et conserve l'autre. Le rafraîchissement et la duplication conservent les deux pourcentages. La synchronisation qui préserve les prix nets conserve aussi la remise supplémentaire et ajuste uniquement la première remise.
 
 Les validations client/groupe appliquent la remise globale issue du prix net après les deux remises. Les exports PDF, Excel et CSV continuent de présenter uniquement le prix net final, sans exposer les remises internes.
 
@@ -166,6 +170,8 @@ La zone **Prix public conseillé** propose deux champs liés sur chaque ligne :
 
 - **Majoration %** : pourcentage appliqué au prix net HT du client ; saisir 25 % sur un prix net de 80 € donne un **PVC HT** de 100 € ;
 - **PVC HT** : prix public conseillé hors taxes ; saisir 120 € sur un prix net de 80 € recalcule la majoration à 50 %.
+
+Le champ **Majoration %** de la rangée « Appliquer à toute la section » fixe le PVC de toutes les lignes de la section à partir de leur propre prix net (prix net × (1 + majoration)), en une seule opération annulée en totalité en cas d'erreur. Les lignes à prix net nul sont ignorées et signalées.
 
 Le prix est arrondi au centime et enregistré à la sortie du champ. Vider l'un des deux champs supprime le prix public conseillé. Une majoration n'est pas possible sur un prix net nul (saisir alors directement le PVC).
 
@@ -344,7 +350,9 @@ Exécuter également `node tests/product-modal.cjs` pour vérifier le rendu du b
 
 Exécuter `node tests/section-collapse.cjs` pour vérifier le repli/dépli indépendant des sections, les états d'accessibilité et les contrôles des sections existantes ou créées dynamiquement.
 
-Exécuter `php tests/public-price.php` et `node tests/tarif-discounts.cjs` pour vérifier le prix public conseillé : calcul prix ⇄ majoration, partage entre tarifs, suppression, valeurs invalides, conservation lors des changements de prix net, option d'export, colonnes de l'éditeur, en-tête figé et migration 1.7.0.
+Exécuter `php tests/public-price.php` et `node tests/tarif-discounts.cjs` pour vérifier le prix public conseillé : calcul prix ⇄ majoration, majoration de section, partage entre tarifs, suppression, valeurs invalides, conservation lors des changements de prix net, option d'export, colonnes de l'éditeur, en-tête figé et migration 1.7.0.
+
+Exécuter `php tests/editor-layout.php` et `node tests/editor-layout.cjs` pour vérifier l'ajout des nouvelles sections en tête, l'ordre des étapes d'ajout de produits, le libellé **Rajouter section**, le repli du bloc de validation et la numérotation continue des lignes.
 
 Exécuter `node tests/line-processed.cjs` pour vérifier la coche de suivi, son rendu et le rétablissement de son état en cas d'erreur ; les tests PHP vérifient également sa persistance et son isolation par tarif.
 

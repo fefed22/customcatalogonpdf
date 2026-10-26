@@ -23,8 +23,157 @@
   display: block;
 }
 
-.customcatalog-tarif-editor #tarif-product-manufacturer {
-  margin-bottom: 8px;
+/* Ajout de produits : trois étapes qui se combinent, puis les autres méthodes */
+.customcatalog-tarif-editor .tarif-add-panel {
+  margin: 0 0 10px;
+  padding: 10px 14px 12px;
+  border: 1px solid #cfe0f3;
+  border-radius: 4px;
+  background: #f7fafd;
+}
+
+.customcatalog-tarif-editor .tarif-add-panel legend {
+  width: auto;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  font-size: 14px;
+  font-weight: bold;
+  color: #2f6fb0;
+}
+
+.customcatalog-tarif-editor .tarif-add-steps {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(180px, 0.8fr) minmax(320px, 1.6fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.customcatalog-tarif-editor .tarif-add-step {
+  position: relative;
+  min-width: 0;
+}
+
+.customcatalog-tarif-editor .tarif-add-step + .tarif-add-step::before {
+  content: '+';
+  position: absolute;
+  left: -10px;
+  bottom: 7px;
+  font-weight: bold;
+  color: #9fc0e3;
+}
+
+.customcatalog-tarif-editor .tarif-step-number {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #2f6fb0;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.customcatalog-tarif-editor .tarif-add-step label small {
+  font-weight: normal;
+  color: #6b7a90;
+}
+
+.customcatalog-tarif-editor .tarif-search-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.customcatalog-tarif-editor .tarif-add-help {
+  margin: 6px 0 0;
+}
+
+.customcatalog-tarif-editor .tarif-add-alternatives {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #cfe0f3;
+}
+
+.customcatalog-tarif-editor .tarif-add-alternatives .help-block {
+  flex: 1 1 260px;
+  margin: 0;
+}
+
+.customcatalog-tarif-editor .tarif-add-or {
+  font-weight: bold;
+  color: #5b6b7f;
+}
+
+.customcatalog-tarif-editor .tarif-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.customcatalog-tarif-editor .tarif-tools-separator {
+  width: 1px;
+  height: 24px;
+  margin: 0 6px;
+  background: #d5dde6;
+}
+
+.customcatalog-tarif-editor .tarif-tools-label {
+  font-weight: bold;
+  color: #5b6b7f;
+}
+
+.customcatalog-tarif-editor .tarif-tools .tarif-public-toggle {
+  margin: 0 0 0 10px;
+}
+
+@media (max-width: 1199px) {
+  .customcatalog-tarif-editor .tarif-add-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .customcatalog-tarif-editor .tarif-add-step + .tarif-add-step::before {
+    content: none;
+  }
+}
+
+/* Validation repliable */
+.customcatalog-tarif-editor .tarif-validation-title {
+  margin: 0;
+}
+
+.customcatalog-tarif-editor .tarif-toggle-validation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.customcatalog-tarif-editor .tarif-validation-summary {
+  font-size: 12px;
+  font-weight: normal;
+  color: #6b7a90;
+}
+
+.customcatalog-tarif-editor #tarif-validation.is-collapsed .tarif-validation-body {
+  display: none;
+}
+
+.customcatalog-tarif-editor .tarif-validation-body {
+  padding-top: 8px;
 }
 
 #tarif-products-modal .modal-dialog {
@@ -105,10 +254,6 @@
   white-space: nowrap;
 }
 
-.customcatalog-tarif-editor .tarif-toolbar-buttons .btn {
-  margin-bottom: 5px;
-}
-
 /* Le conteneur select2 de la recherche produit prend toute la largeur */
 .customcatalog-tarif-editor .tarif-toolbar .select2-container {
   width: 100% !important;
@@ -147,26 +292,61 @@
   border-radius: 4px 4px 0 0;
 }
 
+.customcatalog-tarif-editor .tarif-section-range {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7a90;
+  white-space: nowrap;
+}
+
+.customcatalog-tarif-editor .tarif-line-number {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #5b6b7f;
+  font-variant-numeric: tabular-nums;
+}
+
 .customcatalog-tarif-editor .tarif-section-header .tarif-section-title {
   flex: 1;
   max-width: 400px;
 }
 
-.customcatalog-tarif-editor .tarif-section-reduction,
-.customcatalog-tarif-editor .tarif-section-additional {
-  width: 200px;
+/* Actions de section, alignées sous l'en-tête de la colonne concernée */
+.customcatalog-tarif-editor .tarif-head-tool {
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  padding: 4px 6px;
+  border-top: 1px dashed #d5dde6;
+  text-transform: none;
+  font-weight: normal;
 }
 
-.customcatalog-tarif-editor .tarif-section-reduction {
-  margin-left: auto;
+.customcatalog-tarif-editor .tarif-head-tool-label {
+  grid-column: 1 / 4;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  justify-content: flex-end;
+  gap: 6px;
+  background: #fff;
+  color: #5b6b7f;
+  font-style: italic;
 }
 
-.customcatalog-tarif-editor .tarif-section-reduction-input {
+.customcatalog-tarif-editor .tarif-tool-reduction { grid-column: 6; }
+.customcatalog-tarif-editor .tarif-tool-additional { grid-column: 7; }
+.customcatalog-tarif-editor .tarif-tool-markup { grid-column: 10; }
+
+.customcatalog-tarif-editor .tarif-head-tool .input-group {
+  width: 100%;
+}
+
+.customcatalog-tarif-editor .tarif-head-tool .form-control {
+  min-width: 0;
   text-align: right;
-}
-
-.customcatalog-tarif-editor .tarif-section-none .tarif-section-reduction {
-  margin-left: auto;
 }
 
 .customcatalog-tarif-editor .tarif-section-none-label {
@@ -191,13 +371,13 @@
 .customcatalog-tarif-editor .tarif-line {
   display: grid;
   grid-template-columns:
-    26px 54px 220px
+    40px 54px 220px
     minmax(95px, 1fr) minmax(95px, 1fr)
     minmax(105px, 1fr) minmax(105px, 1fr) minmax(90px, 1fr)
     minmax(200px, 1.6fr)
     minmax(110px, 1fr) minmax(130px, 1.1fr)
     40px 50px;
-  min-width: 1560px;
+  min-width: 1574px;
   align-items: stretch;
 }
 
@@ -288,9 +468,9 @@
 }
 
 .customcatalog-tarif-editor .tarif-col-drag { left: 0; }
-.customcatalog-tarif-editor .tarif-col-img { left: 26px; }
+.customcatalog-tarif-editor .tarif-col-img { left: 40px; }
 .customcatalog-tarif-editor .tarif-col-info {
-  left: 80px;
+  left: 94px;
   box-shadow: 4px 0 4px -3px rgba(0, 0, 0, 0.12);
 }
 

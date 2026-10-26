@@ -19,64 +19,85 @@
 
   <div class="panel-body">
 
-    {* ── Barre d'actions ─────────────────────────────────────────────── *}
-    <div class="row tarif-toolbar">
-      <div class="col-lg-5 col-md-6">
-        <label for="tarif-product-manufacturer">{l s='Marque' mod='customcatalogonpdf'}</label>
-        <select id="tarif-product-manufacturer" class="form-control">
-          <option value="0">{l s='Toutes les marques' mod='customcatalogonpdf'}</option>
-          <option value="-1">{l s='Sans marque' mod='customcatalogonpdf'}</option>
-          {foreach from=$product_manufacturers item=manufacturer}
-            <option value="{$manufacturer.id_manufacturer|intval}">{$manufacturer.name|escape:'htmlall':'UTF-8'}</option>
-          {/foreach}
-        </select>
-        <label>{l s='Ajouter un produit' mod='customcatalogonpdf'}</label>
-        <input type="hidden"
-               id="tarif-product-search"
-               class="form-control"
-               data-search-url="{$product_search_url|escape:'htmlall':'UTF-8'}">
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <label>{l s='Dans la section' mod='customcatalogonpdf'}</label>
-        <div class="tarif-add-group">
-          <select id="tarif-target-section" class="form-control">
-            <option value="0">{l s='— Sans section —' mod='customcatalogonpdf'}</option>
-            {foreach from=$sections item=section}
-              {if $section.id_section > 0}
-                <option value="{$section.id_section|intval}">{$section.title|escape:'htmlall':'UTF-8'}</option>
-              {/if}
-            {/foreach}
-          </select>
-          <button type="button" class="btn btn-primary" id="tarif-add-line">
-            <i class="icon-plus"></i> {l s='Ajouter' mod='customcatalogonpdf'}
-          </button>
+    {* ── Ajout de produits ───────────────────────────────────────────── *}
+    <div class="tarif-toolbar">
+      <fieldset class="tarif-add-panel">
+        <legend><i class="icon-plus-circle"></i> {l s='Ajouter des produits' mod='customcatalogonpdf'}</legend>
+        <div class="tarif-add-steps">
+          <div class="tarif-add-step tarif-add-step-section">
+            <label for="tarif-target-section"><span class="tarif-step-number">1</span> {l s='Section de destination' mod='customcatalogonpdf'}</label>
+            <div class="tarif-add-group">
+              <select id="tarif-target-section" class="form-control">
+                <option value="0">{l s='— Sans section —' mod='customcatalogonpdf'}</option>
+                {foreach from=$sections item=section}
+                  {if $section.id_section > 0}
+                    <option value="{$section.id_section|intval}">{$section.title|escape:'htmlall':'UTF-8'}</option>
+                  {/if}
+                {/foreach}
+              </select>
+              <button type="button" class="btn btn-default" id="tarif-add-section"
+                      title="{l s='Crée une section en tête du tarif et la choisit comme destination' mod='customcatalogonpdf'}">
+                <i class="icon-folder-open"></i> {l s='Rajouter section' mod='customcatalogonpdf'}
+              </button>
+            </div>
+          </div>
+          <div class="tarif-add-step tarif-add-step-brand">
+            <label for="tarif-product-manufacturer"><span class="tarif-step-number">2</span> {l s='Filtrer par marque' mod='customcatalogonpdf'} <small>({l s='facultatif' mod='customcatalogonpdf'})</small></label>
+            <select id="tarif-product-manufacturer" class="form-control">
+              <option value="0">{l s='Toutes les marques' mod='customcatalogonpdf'}</option>
+              <option value="-1">{l s='Sans marque' mod='customcatalogonpdf'}</option>
+              {foreach from=$product_manufacturers item=manufacturer}
+                <option value="{$manufacturer.id_manufacturer|intval}">{$manufacturer.name|escape:'htmlall':'UTF-8'}</option>
+              {/foreach}
+            </select>
+          </div>
+          <div class="tarif-add-step tarif-add-step-search">
+            <label for="tarif-product-search"><span class="tarif-step-number">3</span> {l s='Rechercher puis ajouter' mod='customcatalogonpdf'}</label>
+            <div class="tarif-add-group">
+              <div class="tarif-search-field">
+                <input type="hidden"
+                       id="tarif-product-search"
+                       class="form-control"
+                       data-search-url="{$product_search_url|escape:'htmlall':'UTF-8'}">
+              </div>
+              <button type="button" class="btn btn-primary" id="tarif-add-line">
+                <i class="icon-plus"></i> {l s='Ajouter' mod='customcatalogonpdf'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="col-lg-4 col-md-12 text-right tarif-toolbar-buttons">
-        <label class="hidden-md hidden-sm hidden-xs">&nbsp;</label>
-        <div>
+        <p class="help-block tarif-add-help">
+          <i class="icon-info-circle"></i>
+          {l s='La recherche ne propose que les produits de la marque choisie, et le produit est ajouté dans la section de destination.' mod='customcatalogonpdf'}
+        </p>
+        <div class="tarif-add-alternatives">
+          <span class="tarif-add-or">{l s='Ou ajouter autrement' mod='customcatalogonpdf'}</span>
           <button type="button" class="btn btn-default" id="tarif-browse-products">
             <i class="icon-th"></i> {l s='Parcourir les produits' mod='customcatalogonpdf'}
           </button>
-          <button type="button" class="btn btn-default" id="tarif-add-section">
-            <i class="icon-folder-open"></i> {l s='Section' mod='customcatalogonpdf'}
-          </button>
           <button type="button" class="btn btn-default" id="tarif-add-references">
-            <i class="icon-list-ol"></i> {l s='Réf. en masse' mod='customcatalogonpdf'}
+            <i class="icon-list-ol"></i> {l s='Coller des références en masse' mod='customcatalogonpdf'}
           </button>
-          <button type="button" class="btn btn-default" id="tarif-refresh-prices">
-            <i class="icon-refresh"></i> {l s='Prix' mod='customcatalogonpdf'}
-          </button>
-          <a class="btn btn-default" href="{$pdf_url|escape:'htmlall':'UTF-8'}">
-            <i class="icon-file-pdf-o"></i> PDF
-          </a>
-          <a class="btn btn-default" href="{$xlsx_url|escape:'htmlall':'UTF-8'}">
-            <i class="icon-file-excel-o"></i> Excel
-          </a>
-          <a class="btn btn-default" href="{$csv_url|escape:'htmlall':'UTF-8'}">
-            <i class="icon-file-text-o"></i> CSV
-          </a>
+          <span class="help-block">{l s='Ces fenêtres ont leurs propres filtres ; la marque et la section choisies ci-dessus y sont reprises par défaut.' mod='customcatalogonpdf'}</span>
         </div>
+      </fieldset>
+
+      <div class="tarif-tools">
+        <button type="button" class="btn btn-default" id="tarif-refresh-prices"
+                title="{l s='Réactualiser les prix catalogue et remises de groupe' mod='customcatalogonpdf'}">
+          <i class="icon-refresh"></i> {l s='Rafraîchir les prix' mod='customcatalogonpdf'}
+        </button>
+        <span class="tarif-tools-separator"></span>
+        <span class="tarif-tools-label">{l s='Exporter' mod='customcatalogonpdf'}</span>
+        <a class="btn btn-default" href="{$pdf_url|escape:'htmlall':'UTF-8'}">
+          <i class="icon-file-pdf-o"></i> PDF
+        </a>
+        <a class="btn btn-default" href="{$xlsx_url|escape:'htmlall':'UTF-8'}">
+          <i class="icon-file-excel-o"></i> Excel
+        </a>
+        <a class="btn btn-default" href="{$csv_url|escape:'htmlall':'UTF-8'}">
+          <i class="icon-file-text-o"></i> CSV
+        </a>
         <div class="checkbox tarif-public-toggle">
           <label for="tarif-show-public-price">
             <input type="checkbox" id="tarif-show-public-price" {if $show_public_price}checked{/if}>
@@ -88,73 +109,88 @@
 
     <hr>
 
-    <div id="tarif-validation" data-id-customer="{$tarif.id_customer|intval}">
-      <h3><i class="icon-lock"></i> {l s='Validation du tarif' mod='customcatalogonpdf'}</h3>
-      <p class="alert alert-warning">
-        {l s='Action sensible : deux confirmations sont obligatoires. Les nouveaux prix spécifiques remplacent les anciens uniquement pour les produits et déclinaisons de ce tarif et la cible choisie.' mod='customcatalogonpdf'}
-        {l s='Les règles de prix catalogue et les prix propres aux autres cibles sont conservés.' mod='customcatalogonpdf'}
-      </p>
-      {if isset($validation_targets.customer)}
-        <p>
-          <strong>{l s='Client' mod='customcatalogonpdf'} :</strong>
-          {$validation_targets.customer.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.customer.id|intval})
+    <div id="tarif-validation" class="is-collapsed" data-id-customer="{$tarif.id_customer|intval}">
+      <h3 class="tarif-validation-title">
+        <button type="button" class="tarif-toggle-validation" aria-expanded="false" aria-controls="tarif-validation-body">
+          <i class="icon-chevron-right" aria-hidden="true"></i>
+          <i class="icon-lock" aria-hidden="true"></i> {l s='Validation du tarif' mod='customcatalogonpdf'}
+          <small class="tarif-validation-summary">
+            {if $validation_history}
+              {assign var=last_validation value=$validation_history[0]}
+              {l s='Dernière validation' mod='customcatalogonpdf'} : {$last_validation.date_add|escape:'htmlall':'UTF-8'}{if $last_validation.target_type != 'legacy'} &middot; {if $last_validation.target_type == 'group'}{l s='Groupe' mod='customcatalogonpdf'}{else}{l s='Client' mod='customcatalogonpdf'}{/if} : {$last_validation.target_name|escape:'htmlall':'UTF-8'}{/if}
+            {else}
+              {l s='Jamais validé' mod='customcatalogonpdf'}
+            {/if}
+          </small>
+        </button>
+      </h3>
+      <div id="tarif-validation-body" class="tarif-validation-body">
+        <p class="alert alert-warning">
+          {l s='Action sensible : deux confirmations sont obligatoires. Les nouveaux prix spécifiques remplacent les anciens uniquement pour les produits et déclinaisons de ce tarif et la cible choisie.' mod='customcatalogonpdf'}
+          {l s='Les règles de prix catalogue et les prix propres aux autres cibles sont conservés.' mod='customcatalogonpdf'}
         </p>
-      {/if}
-      {if isset($validation_targets.group)}
-        <p>
-          <strong>{l s='Groupe de clients par défaut' mod='customcatalogonpdf'} :</strong>
-          {$validation_targets.group.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.group.id|intval}).
-          {l s='La validation groupe concerne tous les clients de ce groupe. Leurs prix spécifiques individuels restent prioritaires.' mod='customcatalogonpdf'}
-        </p>
-      {/if}
-      <button type="button" class="btn btn-success tarif-validate"
-              data-target="customer"
-              data-id-target="{if isset($validation_targets.customer)}{$validation_targets.customer.id|intval}{else}0{/if}"
-              data-target-name="{if isset($validation_targets.customer)}{$validation_targets.customer.name|escape:'htmlall':'UTF-8'}{/if}"
-              {if !isset($validation_targets.customer)}disabled{/if}>
-        <i class="icon-user"></i> {l s='Valider le tarif sur le client' mod='customcatalogonpdf'}
-      </button>
-      <button type="button" class="btn btn-warning tarif-validate"
-              data-target="group"
-              data-id-target="{if isset($validation_targets.group)}{$validation_targets.group.id|intval}{else}0{/if}"
-              data-target-name="{if isset($validation_targets.group)}{$validation_targets.group.name|escape:'htmlall':'UTF-8'}{/if}"
-              {if !isset($validation_targets.group)}disabled{/if}>
-        <i class="icon-group"></i> {l s='Valider le tarif sur le groupe' mod='customcatalogonpdf'}
-      </button>
-      {if !isset($validation_targets.customer)}
-        <p class="help-block">{l s='Enregistrez un client valide pour activer la validation.' mod='customcatalogonpdf'}</p>
-      {/if}
-      <h4>{l s='Historique des validations' mod='customcatalogonpdf'}</h4>
-      <div class="table-responsive">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{l s='Date' mod='customcatalogonpdf'}</th>
-              <th>{l s='Cible' mod='customcatalogonpdf'}</th>
-              <th>{l s='Validé par' mod='customcatalogonpdf'}</th>
-              <th>{l s='Lignes' mod='customcatalogonpdf'}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {foreach from=$validation_history item=validation}
+        {if isset($validation_targets.customer)}
+          <p>
+            <strong>{l s='Client' mod='customcatalogonpdf'} :</strong>
+            {$validation_targets.customer.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.customer.id|intval})
+          </p>
+        {/if}
+        {if isset($validation_targets.group)}
+          <p>
+            <strong>{l s='Groupe de clients par défaut' mod='customcatalogonpdf'} :</strong>
+            {$validation_targets.group.name|escape:'htmlall':'UTF-8'} (#{$validation_targets.group.id|intval}).
+            {l s='La validation groupe concerne tous les clients de ce groupe. Leurs prix spécifiques individuels restent prioritaires.' mod='customcatalogonpdf'}
+          </p>
+        {/if}
+        <button type="button" class="btn btn-success tarif-validate"
+                data-target="customer"
+                data-id-target="{if isset($validation_targets.customer)}{$validation_targets.customer.id|intval}{else}0{/if}"
+                data-target-name="{if isset($validation_targets.customer)}{$validation_targets.customer.name|escape:'htmlall':'UTF-8'}{/if}"
+                {if !isset($validation_targets.customer)}disabled{/if}>
+          <i class="icon-user"></i> {l s='Valider le tarif sur le client' mod='customcatalogonpdf'}
+        </button>
+        <button type="button" class="btn btn-warning tarif-validate"
+                data-target="group"
+                data-id-target="{if isset($validation_targets.group)}{$validation_targets.group.id|intval}{else}0{/if}"
+                data-target-name="{if isset($validation_targets.group)}{$validation_targets.group.name|escape:'htmlall':'UTF-8'}{/if}"
+                {if !isset($validation_targets.group)}disabled{/if}>
+          <i class="icon-group"></i> {l s='Valider le tarif sur le groupe' mod='customcatalogonpdf'}
+        </button>
+        {if !isset($validation_targets.customer)}
+          <p class="help-block">{l s='Enregistrez un client valide pour activer la validation.' mod='customcatalogonpdf'}</p>
+        {/if}
+        <h4>{l s='Historique des validations' mod='customcatalogonpdf'}</h4>
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
               <tr>
-                <td>{$validation.date_add|escape:'htmlall':'UTF-8'}</td>
-                <td>
-                  {if $validation.target_type == 'legacy'}
-                    {l s='Validation antérieure — cible non historisée' mod='customcatalogonpdf'}
-                  {else}
-                    {if $validation.target_type == 'group'}{l s='Groupe' mod='customcatalogonpdf'}{else}{l s='Client' mod='customcatalogonpdf'}{/if}
-                    : {$validation.target_name|escape:'htmlall':'UTF-8'} (#{$validation.id_target|intval})
-                  {/if}
-                </td>
-                <td>{if $validation.id_employee > 0}{$validation.employee_name|escape:'htmlall':'UTF-8'} (#{$validation.id_employee|intval}){else}—{/if}</td>
-                <td>{if $validation.target_type == 'legacy'}—{else}{$validation.line_count|intval}{/if}</td>
+                <th>{l s='Date' mod='customcatalogonpdf'}</th>
+                <th>{l s='Cible' mod='customcatalogonpdf'}</th>
+                <th>{l s='Validé par' mod='customcatalogonpdf'}</th>
+                <th>{l s='Lignes' mod='customcatalogonpdf'}</th>
               </tr>
-            {foreachelse}
-              <tr><td colspan="4">{l s='Aucune validation.' mod='customcatalogonpdf'}</td></tr>
-            {/foreach}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {foreach from=$validation_history item=validation}
+                <tr>
+                  <td>{$validation.date_add|escape:'htmlall':'UTF-8'}</td>
+                  <td>
+                    {if $validation.target_type == 'legacy'}
+                      {l s='Validation antérieure — cible non historisée' mod='customcatalogonpdf'}
+                    {else}
+                      {if $validation.target_type == 'group'}{l s='Groupe' mod='customcatalogonpdf'}{else}{l s='Client' mod='customcatalogonpdf'}{/if}
+                      : {$validation.target_name|escape:'htmlall':'UTF-8'} (#{$validation.id_target|intval})
+                    {/if}
+                  </td>
+                  <td>{if $validation.id_employee > 0}{$validation.employee_name|escape:'htmlall':'UTF-8'} (#{$validation.id_employee|intval}){else}—{/if}</td>
+                  <td>{if $validation.target_type == 'legacy'}—{else}{$validation.line_count|intval}{/if}</td>
+                </tr>
+              {foreachelse}
+                <tr><td colspan="4">{l s='Aucune validation.' mod='customcatalogonpdf'}</td></tr>
+              {/foreach}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -195,35 +231,10 @@
                       title="{l s='Supprimer la section' mod='customcatalogonpdf'}">
                 <i class="icon-trash"></i>
               </button>
-              <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
-                <input type="text" class="form-control tarif-section-reduction-input" placeholder="{l s='Théorique %' mod='customcatalogonpdf'}" aria-label="{l s='Remise théorique de section' mod='customcatalogonpdf'}">
-                <span class="input-group-btn">
-                  <button type="button" class="btn btn-default tarif-apply-section-reduction">
-                    <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
-                  </button>
-                </span>
-              </div>
             {else}
               <span class="tarif-section-none-label">{l s='Sans section' mod='customcatalogonpdf'}</span>
-              <div class="tarif-section-reduction input-group" title="{l s='Appliquer une réduction % à toute la section' mod='customcatalogonpdf'}">
-                <input type="text" class="form-control tarif-section-reduction-input" placeholder="{l s='Théorique %' mod='customcatalogonpdf'}" aria-label="{l s='Remise théorique de section' mod='customcatalogonpdf'}">
-                <span class="input-group-btn">
-                  <button type="button" class="btn btn-default tarif-apply-section-reduction">
-                    <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
-                  </button>
-                </span>
-              </div>
             {/if}
-            <div class="tarif-section-additional input-group">
-              <input type="text" class="form-control tarif-section-additional-input"
-                     placeholder="{l s='Supplémentaire %' mod='customcatalogonpdf'}"
-                     aria-label="{l s='Remise supplémentaire de section' mod='customcatalogonpdf'}">
-              <span class="input-group-btn">
-                <button type="button" class="btn btn-default tarif-apply-section-additional">
-                  <i class="icon-magic"></i> {l s='Appliquer' mod='customcatalogonpdf'}
-                </button>
-              </span>
-            </div>
+            <span class="tarif-section-range" aria-live="polite"></span>
           </div>
 
           <div class="tarif-lines-head" id="tarif-section-head-{$section.id_section|intval}">
@@ -231,7 +242,7 @@
             <span class="tarif-head-group tarif-hg-discount">{l s='Remises client' mod='customcatalogonpdf'}</span>
             <span class="tarif-head-group tarif-hg-net">{l s='Prix net client' mod='customcatalogonpdf'}</span>
             <span class="tarif-head-group tarif-hg-public" title="{l s='Prix partagé : identique dans tous les tarifs contenant ce produit' mod='customcatalogonpdf'}">{l s='Prix public conseillé' mod='customcatalogonpdf'}</span>
-            <span class="tarif-cell tarif-col-drag"></span>
+            <span title="{l s='Numéro de la ligne dans tout le tarif' mod='customcatalogonpdf'}" class="tarif-cell tarif-col-drag">{l s='N°' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-img">{l s='Image' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-info">{l s='Produit' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start">{l s='Prix catalogue HT' mod='customcatalogonpdf'}</span>
@@ -244,12 +255,37 @@
             <span class="tarif-cell tarif-col-num tarif-zone-public">{l s='PVC HT' mod='customcatalogonpdf'}</span>
             <span class="tarif-cell tarif-col-actions"></span>
             <span class="tarif-cell tarif-col-processed">{l s='Traité' mod='customcatalogonpdf'}</span>
+            <span class="tarif-head-tool tarif-head-tool-label">{l s='Appliquer à toute la section' mod='customcatalogonpdf'} <i class="icon-arrow-right" aria-hidden="true"></i></span>
+            <span class="tarif-head-tool tarif-tool-reduction tarif-zone-discount tarif-zone-start">
+              <span class="tarif-section-reduction input-group input-group-sm" title="{l s='Remplace la remise théorique de toutes les lignes de la section, en conservant la remise supplémentaire' mod='customcatalogonpdf'}">
+                <input type="text" class="form-control tarif-section-reduction-input" placeholder="%" aria-label="{l s='Remise théorique de section' mod='customcatalogonpdf'}">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default tarif-apply-section-reduction" title="{l s='Appliquer la remise théorique à la section' mod='customcatalogonpdf'}"><i class="icon-magic"></i></button>
+                </span>
+              </span>
+            </span>
+            <span class="tarif-head-tool tarif-tool-additional tarif-zone-discount">
+              <span class="tarif-section-additional input-group input-group-sm" title="{l s='Remplace la remise supplémentaire de toutes les lignes de la section, en conservant la remise théorique' mod='customcatalogonpdf'}">
+                <input type="text" class="form-control tarif-section-additional-input" placeholder="%" aria-label="{l s='Remise supplémentaire de section' mod='customcatalogonpdf'}">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default tarif-apply-section-additional" title="{l s='Appliquer la remise supplémentaire à la section' mod='customcatalogonpdf'}"><i class="icon-magic"></i></button>
+                </span>
+              </span>
+            </span>
+            <span class="tarif-head-tool tarif-tool-markup tarif-zone-public tarif-zone-start">
+              <span class="tarif-section-markup input-group input-group-sm" title="{l s='Fixe le prix public conseillé de toutes les lignes de la section : prix net + majoration. Le PVC est partagé par tous les tarifs.' mod='customcatalogonpdf'}">
+                <input type="text" class="form-control tarif-section-markup-input" placeholder="%" aria-label="{l s='Majoration du prix public conseillé de section' mod='customcatalogonpdf'}">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default tarif-apply-section-markup" title="{l s='Appliquer la majoration à la section' mod='customcatalogonpdf'}"><i class="icon-magic"></i></button>
+                </span>
+              </span>
+            </span>
           </div>
 
           <div class="tarif-lines" id="tarif-section-lines-{$section.id_section|intval}" data-id-section="{$section.id_section|intval}">
             {foreach from=$section.lines item=line}
               <div class="tarif-line" data-id-line="{$line.id_line|intval}" data-public-price="{if $line.public_price !== null}{$line.public_price|string_format:"%.2f"}{/if}" data-base-price="{$line.base_price|string_format:"%.6f"}" data-group-reduction="{$line.group_reduction_percent|string_format:"%.4f"}">
-                <span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
+                <span class="tarif-cell tarif-col-drag"><span class="tarif-line-number"></span><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>
                 <span class="tarif-cell tarif-col-img">
                   {if $line.image_url}
                     <img src="{$line.image_url|escape:'htmlall':'UTF-8'}" alt="" class="tarif-thumb">

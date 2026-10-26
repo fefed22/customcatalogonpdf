@@ -154,7 +154,7 @@
         + '" data-public-price="' + fmtOptional(line.public_price) + '"'
         + ' data-base-price="' + (parseFloat(line.base_price) || 0) + '"'
         + ' data-group-reduction="' + (parseFloat(line.group_reduction_percent) || 0) + '">'
-        + '<span class="tarif-cell tarif-col-drag"><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>'
+        + '<span class="tarif-cell tarif-col-drag"><span class="tarif-line-number"></span><span class="tarif-drag-line"><i class="icon-arrows"></i></span></span>'
         + '<span class="tarif-cell tarif-col-img">' + img + '</span>'
         + '<span class="tarif-cell tarif-col-info"><strong>' + escapeHtml(line.name) + '</strong>' + attrs
         + '<span class="tarif-meta">' + meta.join(' &middot; ') + '</span>'
@@ -204,21 +204,15 @@
         + '<span class="tarif-drag-section"><i class="icon-arrows"></i></span>'
         + '<input type="text" class="form-control tarif-section-title" value="' + escapeHtml(section.title) + '" placeholder="Titre de la section">'
         + '<button type="button" class="btn btn-xs btn-danger tarif-delete-section"><i class="icon-trash"></i></button>'
-        + '<div class="tarif-section-reduction input-group">'
-        + '<input type="text" class="form-control tarif-section-reduction-input" placeholder="Théorique %" aria-label="Remise théorique de section">'
-        + '<span class="input-group-btn"><button type="button" class="btn btn-default tarif-apply-section-reduction">'
-        + '<i class="icon-magic"></i> Appliquer</button></span></div>'
-        + '<div class="tarif-section-additional input-group">'
-        + '<input type="text" class="form-control tarif-section-additional-input" placeholder="Supplémentaire %" aria-label="Remise supplémentaire de section">'
-        + '<span class="input-group-btn"><button type="button" class="btn btn-default tarif-apply-section-additional">'
-        + '<i class="icon-magic"></i> Appliquer</button></span></div>'
+        + '<span class="tarif-section-range" aria-live="polite"></span>'
         + '</div>'
         + '<div class="tarif-lines-head" id="tarif-section-head-' + id + '">'
         + '<span class="tarif-head-group tarif-hg-catalog">Catalogue</span>'
         + '<span class="tarif-head-group tarif-hg-discount">Remises client</span>'
         + '<span class="tarif-head-group tarif-hg-net">Prix net client</span>'
         + '<span class="tarif-head-group tarif-hg-public" title="Prix partagé : identique dans tous les tarifs contenant ce produit">Prix public conseillé</span>'
-        + '<span class="tarif-cell tarif-col-drag"></span><span class="tarif-cell tarif-col-img">Image</span>'
+        + '<span title="Numéro de la ligne dans tout le tarif" class="tarif-cell tarif-col-drag">N°</span>'
+        + '<span class="tarif-cell tarif-col-img">Image</span>'
         + '<span class="tarif-cell tarif-col-info">Produit</span>'
         + '<span class="tarif-cell tarif-col-num tarif-zone-catalog tarif-zone-start">Prix catalogue HT</span>'
         + '<span class="tarif-cell tarif-col-num tarif-zone-catalog">Remise groupe</span>'
@@ -230,9 +224,27 @@
         + '<span class="tarif-cell tarif-col-num tarif-zone-public">PVC HT</span>'
         + '<span class="tarif-cell tarif-col-actions"></span>'
         + '<span class="tarif-cell tarif-col-processed">Traité</span>'
+        + '<span class="tarif-head-tool tarif-head-tool-label">Appliquer à toute la section <i class="icon-arrow-right" aria-hidden="true"></i></span>'
+        + renderSectionTool('reduction', 'tarif-zone-discount tarif-zone-start', 'Remise théorique de section',
+          'Remplace la remise théorique de toutes les lignes de la section, en conservant la remise supplémentaire',
+          'Appliquer la remise théorique à la section')
+        + renderSectionTool('additional', 'tarif-zone-discount', 'Remise supplémentaire de section',
+          'Remplace la remise supplémentaire de toutes les lignes de la section, en conservant la remise théorique',
+          'Appliquer la remise supplémentaire à la section')
+        + renderSectionTool('markup', 'tarif-zone-public tarif-zone-start', 'Majoration du prix public conseillé de section',
+          'Fixe le prix public conseillé de toutes les lignes de la section : prix net + majoration. Le PVC est partagé par tous les tarifs.',
+          'Appliquer la majoration à la section')
         + '</div>'
         + '<div class="tarif-lines" id="tarif-section-lines-' + id + '" data-id-section="' + id + '"></div>'
         + '</div>';
+    }
+
+    function renderSectionTool(kind, zone, label, help, action) {
+      return '<span class="tarif-head-tool tarif-tool-' + kind + ' ' + zone + '">'
+        + '<span class="tarif-section-' + kind + ' input-group input-group-sm" title="' + help + '">'
+        + '<input type="text" class="form-control tarif-section-' + kind + '-input" placeholder="%" aria-label="' + label + '">'
+        + '<span class="input-group-btn"><button type="button" class="btn btn-default tarif-apply-section-' + kind + '"'
+        + ' title="' + action + '"><i class="icon-magic"></i></button></span></span></span>';
     }
 
     $('#tarif-sections').on('click', '.tarif-toggle-section', function () {
@@ -245,8 +257,30 @@
       $button.find('span').text($button.attr(collapsed ? 'data-expand-label' : 'data-collapse-label'));
     });
 
+    // ── Numérotation globale des lignes, indépendante des sections ───────────
+    function renumberLines() {
+      var $lines = $('#tarif-sections .tarif-lines > .tarif-line');
+      var total = $lines.length;
+      $lines.each(function (index) {
+        $(this).find('.tarif-line-number').text(index + 1)
+          .attr('title', 'Ligne ' + (index + 1) + ' sur ' + total);
+      });
+      $('#tarif-sections > .tarif-section').each(function () {
+        var $sectionLines = $(this).find('.tarif-lines > .tarif-line');
+        var text = 'Aucune ligne · ' + total + ' au total';
+        if ($sectionLines.length) {
+          var first = $lines.index($sectionLines.first()) + 1;
+          var last = first + $sectionLines.length - 1;
+          text = (first === last ? 'Ligne ' + first : 'Lignes ' + first + ' à ' + last)
+            + ' sur ' + total + ' · ' + $sectionLines.length + ' produit' + ($sectionLines.length > 1 ? 's' : '');
+        }
+        $(this).find('.tarif-section-range').text(text);
+      });
+    }
+
     // ── Sortables ────────────────────────────────────────────────────────────
     function saveOrder() {
+      renumberLines();
       var sections = [];
       $('#tarif-sections .tarif-lines').each(function () {
         var idSection = parseInt($(this).data('id-section'), 10);
@@ -269,6 +303,7 @@
     }
 
     function initSortables() {
+      renumberLines();
       $('#tarif-sections .tarif-lines').sortable({
         connectWith: '.tarif-lines',
         items: '> .tarif-line',
@@ -677,27 +712,82 @@
       });
     });
 
+    $('#tarif-sections').on('click', '.tarif-apply-section-markup', function () {
+      var $section = $(this).closest('.tarif-section');
+      var $input = $section.find('.tarif-section-markup-input');
+      var raw = String($input.val()).replace(/\s/g, '').replace(',', '.');
+      var pct = Number(raw);
+      if (raw === '' || !Number.isFinite(pct) || pct <= -100) {
+        window.alert('Saisissez une majoration valide, supérieure à -100 %.');
+        return;
+      }
+      var count = $section.find('.tarif-line').length;
+      if (!count) {
+        window.alert('Aucun produit dans cette section.');
+        return;
+      }
+      if (!window.confirm('Appliquer une majoration de ' + pct.toFixed(2) + ' % au prix net de ' + count
+        + ' produit(s) de cette section pour fixer leur prix public conseillé ?\n\n'
+        + 'Le prix public conseillé est partagé : il sera modifié dans tous les tarifs contenant ces produits. '
+        + 'Les produits à prix net nul sont ignorés.')) {
+        return;
+      }
+
+      api('ApplySectionPublicMarkup', {
+        id_section: parseInt($section.data('id-section'), 10), value: pct
+      }, function (resp) {
+        $.each(resp.lines || [], function (i, line) {
+          var $row = $('.tarif-line[data-id-line="' + parseInt(line.id_line, 10) + '"]');
+          if ($row.length) {
+            applyPublicResult($row, line);
+          }
+        });
+        $input.val('');
+        if (resp.skipped && resp.skipped.length) {
+          window.alert(resp.skipped.length + ' produit(s) à prix net nul ignoré(s) : saisissez leur prix public directement.');
+        }
+      });
+    });
+
+    $('#tarif-sections').on('keydown', '.tarif-section-reduction-input, .tarif-section-additional-input, .tarif-section-markup-input', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        $(this).closest('.input-group').find('button').trigger('click');
+      }
+    });
+
     // ── Suppression de ligne ─────────────────────────────────────────────────
     $('#tarif-sections').on('click', '.tarif-delete-line', function () {
       var $row = $(this).closest('.tarif-line');
       var idLine = parseInt($row.data('id-line'), 10);
       api('DeleteLine', { id_line: idLine }, function () {
         $row.remove();
+        renumberLines();
       });
     });
 
     // ── Ajout de section ─────────────────────────────────────────────────────
+    // La nouvelle section se place en tête des produits et devient la destination.
     $('#tarif-add-section').on('click', function () {
+      var $button = $(this);
+      $button.prop('disabled', true);
       api('AddSection', { title: '' }, function (resp) {
-        $('.tarif-section-none').before(renderSectionBlock(resp.section));
+        var $section = $(renderSectionBlock(resp.section));
+        $('#tarif-sections').prepend($section);
         refreshTargetSections();
+        $('#tarif-target-section').val(String(parseInt(resp.section.id_section, 10)));
         initSortables();
+        $('#tarif-sections').scrollTop(0);
+        $section.find('.tarif-section-title').trigger('focus');
+      }).always(function () {
+        $button.prop('disabled', false);
       });
     });
 
     // ── Ajout en masse par références (modale) ───────────────────────────────
     $('#tarif-add-references').on('click', function () {
       $('#tarif-references-textarea').val('');
+      $('#tarif-references-section').val($('#tarif-target-section').val());
       $('#tarif-references-result').hide().empty();
       $('#tarif-references-modal').modal('show');
     });
@@ -814,6 +904,15 @@
       api('SyncPrices', {}, function () {
         window.location.reload();
       });
+    });
+
+    $('.tarif-toggle-validation').on('click', function () {
+      var $button = $(this);
+      var collapsed = !$('#tarif-validation').hasClass('is-collapsed');
+      $('#tarif-validation').toggleClass('is-collapsed', collapsed);
+      $button.attr('aria-expanded', collapsed ? 'false' : 'true');
+      $button.find('.icon-chevron-right, .icon-chevron-down').first()
+        .toggleClass('icon-chevron-down', !collapsed).toggleClass('icon-chevron-right', collapsed);
     });
 
     $('.tarif-validate').on('click', function () {
